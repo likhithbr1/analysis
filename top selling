@@ -1,0 +1,115 @@
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+from datetime import datetime, timedelta
+
+# ---------- Config ----------
+st.set_page_config(page_title="📦 Product Sales Dashboard", layout="wide")
+st.title("📦 Product Sales Performance Dashboard")
+
+# ---------- Load Data ----------
+@st.cache_data
+def load_data():
+    df = pd.read_excel("sorted_file.xlsx")
+    df['date'] = pd.to_datetime(df['date'])
+    return df
+
+df = load_data()
+
+# ---------- Time Range Selector ----------
+time_options = {
+    "1 Week": 7,
+    "1 Month": 30,
+    "1 Year": 365,
+    "2 Years": 730
+}
+time_selection = st.radio("Select Time Range:", list(time_options.keys()), horizontal=True)
+reference_date = df['date'].max()
+start_date = reference_date - timedelta(days=time_options[time_selection])
+df_filtered = df[(df['date'] >= start_date) & (df['date'] <= reference_date)]
+
+# ---------- Metrics: Total Orders Sold ----------
+total_orders = df_filtered['total_orders'].sum()
+prev_period_start = start_date - timedelta(days=time_options[time_selection])
+prev_period = df[(df['date'] >= prev_period_start) & (df['date'] < start_date)]
+prev_total_orders = prev_period['total_orders'].sum()
+delta = total_orders - prev_total_orders
+delta_percent = (delta / prev_total_orders * 100) if prev_total_orders else 0
+
+# Layout Row 1
+col1, col2 = st.columns([1, 2])
+with col1:
+    st.metric(label="Total Orders Sold", value=f"{total_orders:,}", delta=f"{delta_percent:.1f}%")
+
+# ---------- Top 5 Products ----------
+top_products = df_filtered.groupby('product')['total_orders'].sum().reset_index()
+top_products = top_products.sort_values(by='total_orders', ascending=False)
+
+with col2:
+    st.markdown("**🔝 Top 5 Products (by Total Orders)**")
+    fig_top = go.Figure()
+    for i, row in top_products.head(5).iterrows():
+        fig_top.add_trace(go.Bar(x=[row['product']], y=[row['total_orders']], name=row['product']))
+    fig_top.update_layout(height=250, showlegend=False)
+    st.plotly_chart(fig_top, use_container_width=True)
+    with st.expander("🔎 Expand to view top N with time range"):
+        selected_range = st.selectbox("Change Time Range", list(time_options.keys()), key="top")
+        start_alt = reference_date - timedelta(days=time_options[selected_range])
+        df_alt = df[(df['date'] >= start_alt) & (df['date'] <= reference_date)]
+        top_alt = df_alt.groupby('product')['total_orders'].sum().reset_index()
+        top_alt = top_alt.sort_values(by='total_orders', ascending=False).head(10)
+        fig_top_full = go.Figure()
+        fig_top_full.add_trace(go.Bar(x=top_alt['product'], y=top_alt['total_orders']))
+        fig_top_full.update_layout(title="Top 10 Products", height=400)
+        st.plotly_chart(fig_top_full, use_container_width=True)
+
+# ---------- All Product Trend Line Chart ----------
+st.markdown("**📈 Total Order Trends for All Products**")
+fig_trend = go.Figure()
+for product in df_filtered['product'].unique():
+    sub = df_filtered[df_filtered['product'] == product].groupby('date')['total_orders'].sum().reset_index()
+    fig_trend.add_trace(go.Scatter(x=sub['date'], y=sub['total_orders'], mode='lines', name=product))
+fig_trend.update_layout(height=400, showlegend=False)
+st.plotly_chart(fig_trend, use_container_width=True)
+with st.expander("🔎 Expand to explore different time windows"):
+    selected_range_trend = st.selectbox("Change Time Range", list(time_options.keys()), key="trend")
+    start_alt_trend = reference_date - timedelta(days=time_options[selected_range_trend])
+    df_alt_trend = df[(df['date'] >= start_alt_trend) & (df['date'] <= reference_date)]
+    fig_trend_full = go.Figure()
+    for product in df_alt_trend['product'].unique():
+        sub = df_alt_trend[df_alt_trend['product'] == product].groupby('date')['total_orders'].sum().reset_index()
+        fig_trend_full.add_trace(go.Scatter(x=sub['date'], y=sub['total_orders'], mode='lines', name=product))
+    fig_trend_full.update_layout(height=600)
+    st.plotly_chart(fig_trend_full, use_container_width=True)
+
+# ---------- Bottom 5 Products ----------
+col3, col4 = st.columns(2)
+with col3:
+    st.markdown("**📉 Bottom 5 Products (by Total Orders)**")
+    bottom = top_products.sort_values(by='total_orders', ascending=True).head(5)
+    fig_bottom = go.Figure()
+    fig_bottom.add_trace(go.Bar(x=bottom['product'], y=bottom['total_orders']))
+    fig_bottom.update_layout(height=250, showlegend=False)
+    st.plotly_chart(fig_bottom, use_container_width=True)
+    with st.expander("🔎 Expand to view more"):
+        bottom_full = top_products.sort_values(by='total_orders', ascending=True).head(10)
+        fig_bottom_full = go.Figure()
+        fig_bottom_full.add_trace(go.Bar(x=bottom_full['product'], y=bottom_full['total_orders']))
+        fig_bottom_full.update_layout(title="Bottom 10 Products", height=400)
+        st.plotly_chart(fig_bottom_full, use_container_width=True)
+
+# ---------- Obsolete Products Table ----------
+with col4:
+    st.markdown("**🧊 Obsolete Products (No Sales in Time Window)**")
+    recent_products = df_filtered['product'].unique()
+    all_products = df['product'].unique()
+    obsolete = [p for p in all_products if p not in recent_products]
+    if obsolete:
+        last_orders = df[df['product'].isin(obsolete)].groupby('product')['date'].max().reset_index()
+        last_orders['Days Since Last Order'] = (reference_date - last_orders['date']).dt.days
+        st.dataframe(last_orders[['product', 'date', 'Days Since Last Order']].rename(columns={
+            'product': 'Product',
+            'date': 'Last Order Date'
+        }), use_container_width=True)
+    else:
+        st.success("No obsolete products in the selected time range ✅")
