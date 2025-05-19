@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 
 # ---------- Config ----------
 st.set_page_config(page_title="📦 Product Sales Dashboard", layout="wide")
-st.title("📦 Product Sales Performance Dashboard")
 
 # ---------- Load Data ----------
 @st.cache_data
@@ -41,30 +40,29 @@ top_products = df_filtered.groupby('product')['total_orders'].sum().reset_index(
 top_products = top_products.sort_values(by='total_orders', ascending=False)
 
 # ---------- Layout ----------
-col1, col2, col3 = st.columns([1, 1, 2])
+# All Product Chart - Vertical Bar
+all_products = top_products.sort_values(by='total_orders', ascending=False)
+fig_all = go.Figure(go.Bar(x=all_products['product'], y=all_products['total_orders'], marker_color='blue'))
+fig_all.update_layout(height=400, margin=dict(l=0, r=0, t=10, b=10), showlegend=False)
+st.plotly_chart(fig_all, use_container_width=True)
 
+# Bottom and Top Charts side by side
+col1, col2, col3 = st.columns([1, 1, 1])
+
+# Bottom 5 Products - Horizontal
 with col1:
+    bottom_5 = top_products.sort_values(by='total_orders', ascending=True).head(5)
+    fig_bottom = go.Figure(go.Bar(y=bottom_5['product'], x=bottom_5['total_orders'], orientation='h', marker_color='red'))
+    fig_bottom.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=10), showlegend=False)
+    st.plotly_chart(fig_bottom, use_container_width=True)
+
+# Total Orders Metric in the middle
+with col2:
     st.metric(label="Total Orders Sold", value=f"{total_orders:,}", delta=f"{delta_percent:.1f}%")
 
-with col2:
-    st.markdown("**🔝 Top 5 Products (Vertical Bar Chart)**")
-    top_5 = top_products.head(5)
-    fig_top = go.Figure(go.Bar(x=top_5['product'], y=top_5['total_orders'], marker_color='green'))
-    fig_top.update_layout(height=300, showlegend=False, margin=dict(l=0, r=0, t=30, b=0))
-    st.plotly_chart(fig_top, use_container_width=True)
-
+# Top 5 Products - Horizontal
 with col3:
-    st.markdown("**📈 All Product Trends (Horizontal Bar Chart)**")
-    all_products = top_products.sort_values(by='total_orders', ascending=False)
-    fig_all = go.Figure(go.Bar(y=all_products['product'], x=all_products['total_orders'], orientation='h', marker_color='blue'))
-    fig_all.update_layout(height=500, showlegend=False, margin=dict(l=0, r=0, t=30, b=0))
-    st.plotly_chart(fig_all, use_container_width=True)
-
-col4, col5 = st.columns([1, 1])
-
-with col4:
-    st.markdown("**📉 Bottom 5 Products (Vertical Bar Chart)**")
-    bottom_5 = top_products.sort_values(by='total_orders', ascending=True).head(5)
-    fig_bottom = go.Figure(go.Bar(x=bottom_5['product'], y=bottom_5['total_orders'], marker_color='red'))
-    fig_bottom.update_layout(height=300, showlegend=False, margin=dict(l=0, r=0, t=30, b=0))
-    st.plotly_chart(fig_bottom, use_container_width=True)
+    top_5 = top_products.head(5)
+    fig_top = go.Figure(go.Bar(y=top_5['product'], x=top_5['total_orders'], orientation='h', marker_color='green'))
+    fig_top.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=10), showlegend=False)
+    st.plotly_chart(fig_top, use_container_width=True)
