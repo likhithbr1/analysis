@@ -47,9 +47,9 @@ top_products = top_products.sort_values(by='total_orders', ascending=False)
 # ---------- Layout ----------
 col_chart, col_top = st.columns([2, 1])
 
-# All Product Chart - Vertical Bar, scrollable
+# All Product Chart - Vertical Bar with horizontal scroll container
 with col_chart:
-    st.markdown("**All Product Performance**")
+    st.markdown("<h4 style='color:#DDD;'>All Product Performance</h4>", unsafe_allow_html=True)
     all_products = top_products.sort_values(by='total_orders', ascending=False)
     fig_all = go.Figure(go.Bar(
         x=all_products['product'],
@@ -57,23 +57,30 @@ with col_chart:
         marker_color='#4CAF50'
     ))
     fig_all.update_layout(
-        height=400,
+        height=350,
         margin=dict(l=0, r=0, t=10, b=10),
         showlegend=False,
         plot_bgcolor='rgba(50,50,100,0.8)',
         xaxis=dict(
             tickangle=45,
             automargin=True,
-            range=[-0.5, 10.5],
-            fixedrange=False
+            fixedrange=False,
+            tickfont=dict(color='white'),
+            title_font=dict(color='white')
         ),
-        yaxis_title="Total Orders"
+        yaxis=dict(
+            title="Total Orders",
+            tickfont=dict(color='white'),
+            title_font=dict(color='white')
+        )
     )
-    st.plotly_chart(fig_all, use_container_width=True)
+    st.markdown("<div style='overflow-x:auto;'>", unsafe_allow_html=True)
+    st.plotly_chart(fig_all, use_container_width=False)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # Top 5 Products - Horizontal
 with col_top:
-    st.markdown("**Top 5 Selling Products**")
+    st.markdown("<h4 style='color:#DDD;'>Top 5 Selling Products</h4>", unsafe_allow_html=True)
     top_5 = top_products.head(5)
     fig_top = go.Figure(go.Bar(
         y=top_5['product'],
@@ -82,10 +89,19 @@ with col_top:
         marker_color='#FF6B6B'
     ))
     fig_top.update_layout(
-        height=400,
+        height=350,
         margin=dict(l=0, r=0, t=10, b=10),
         showlegend=False,
         plot_bgcolor='rgba(50,50,100,0.8)',
-        xaxis_title="Total Orders"
+        xaxis=dict(
+            title="Total Orders",
+            tickfont=dict(color='white'),
+            title_font=dict(color='white')
+        ),
+        yaxis=dict(
+            tickfont=dict(color='white'),
+            title_font=dict(color='white')
+        )
     )
     st.plotly_chart(fig_top, use_container_width=True)
+
