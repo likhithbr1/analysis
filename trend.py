@@ -39,22 +39,24 @@ for i, (label, delta) in enumerate(time_ranges.items()):
             end_orders = period_data.iloc[-1]['total_orders']
             trend_color = "green" if end_orders >= start_orders else "red"
 
-            # Create Plotly chart
+            # Create Plotly chart without markers
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=period_data['date'],
                 y=period_data['total_orders'],
-                mode='lines+markers',
-                line=dict(color=trend_color),
-                name=selected_product
+                mode='lines',
+                line=dict(color=trend_color, width=3),
+                name=selected_product,
+                hoverinfo='x+y'
             ))
             fig.update_layout(
                 title=f"{selected_product.upper()} - {label} Trend",
                 xaxis_title="Date",
                 yaxis_title="Total Orders",
                 showlegend=False,
-                height=400
+                height=500
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("No data available for this period.")
+
