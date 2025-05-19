@@ -55,7 +55,7 @@ if st.session_state.selected_product is None:
             if st.button(product):
                 st.session_state.selected_product = product
         with cols[1]:
-            st.plotly_chart(generate_sparkline(period_data, color), use_container_width=True)
+            st.plotly_chart(generate_sparkline(period_data, color), use_container_width=True, key=f"sparkline_{product}")
 
 else:
     selected_product = st.session_state.selected_product
