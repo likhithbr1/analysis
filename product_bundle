@@ -1,0 +1,89 @@
+import pandas as pd
+import networkx as nx
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import plotly.express as px
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import fpgrowth, association_rules
+import warnings
+warnings.filterwarnings("ignore")
+
+# Simulate loading the final rules DataFrame from a previous step
+# For demonstration, we simulate a small rules DataFrame
+df = pd.read_excel("orders.xlsx")
+
+# Transform data for FP-Growth
+transactions = df.groupby('order_id')['product'].apply(list).tolist()
+te = TransactionEncoder()
+te_ary = te.fit(transactions).transform(transactions)
+df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+frequent_itemsets = fpgrowth(df_encoded, min_support=0.01, use_colnames=True)
+rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=0.5)
+
+# Filter the best bundles
+best_bundles = rules[
+    (rules['support'] >= 0.02) &
+    (rules['confidence'] >= 0.6) &
+    (rules['lift'] >= 1.2)
+].copy()
+
+# Prepare data for bar chart
+top_bar = best_bundles.sort_values(by="lift", ascending=False).head(10)
+top_bar["rule"] = top_bar["antecedents"].apply(lambda x: ', '.join(list(x))) + " → " + top_bar["consequents"].apply(lambda x: ', '.join(list(x)))
+
+# Prepare data for network graph
+G = nx.DiGraph()
+for _, row in top_bar.iterrows():
+    for a in row["antecedents"]:
+        for c in row["consequents"]:
+            G.add_edge(a, c, weight=row["lift"])
+
+# Network graph using Plotly
+edge_x = []
+edge_y = []
+node_x = []
+node_y = []
+positions = nx.spring_layout(G)
+
+for edge in G.edges(data=True):
+    x0, y0 = positions[edge[0]]
+    x1, y1 = positions[edge[1]]
+    edge_x += [x0, x1, None]
+    edge_y += [y0, y1, None]
+
+edge_trace = go.Scatter(
+    x=edge_x, y=edge_y,
+    line=dict(width=0.5, color='#888'),
+    hoverinfo='none',
+    mode='lines'
+)
+
+node_trace = go.Scatter(
+    x=[positions[k][0] for k in G.nodes()],
+    y=[positions[k][1] for k in G.nodes()],
+    text=list(G.nodes()),
+    mode='markers+text',
+    hoverinfo='text',
+    marker=dict(
+        showscale=False,
+        color='lightblue',
+        size=20,
+        line_width=2
+    )
+)
+
+fig_network = go.Figure(data=[edge_trace, node_trace])
+fig_network.update_layout(
+    showlegend=False,
+    margin=dict(l=0, r=0, t=30, b=0),
+    title="Product Bundling Network Graph"
+)
+
+# Bar chart
+fig_bar = px.bar(top_bar, x="lift", y="rule", orientation='h',
+                 title="Top 10 Product Bundles by Lift",
+                 labels={"lift": "Lift", "rule": "Product Bundle"},
+                 height=500)
+
+# Display data table
+import ace_tools as tools; tools.display_dataframe_to_user(name="Best Product Bundles Table", dataframe=best_bundles[['antecedents', 'consequents', 'support', 'confidence', 'lift']])
