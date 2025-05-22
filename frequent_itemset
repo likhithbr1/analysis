@@ -1,0 +1,27 @@
+import pandas as pd
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import fpgrowth
+
+# Load the Excel file
+file_path = "transactions.xlsx"  # Change this to your actual file name
+df = pd.read_excel(file_path)
+
+# Split the 'Items Bought' string into a list
+df['Items Bought'] = df['Items Bought'].apply(lambda x: x.split(','))
+
+# Transform the data for FP-Growth
+te = TransactionEncoder()
+te_ary = te.fit(df['Items Bought']).transform(df['Items Bought'])
+df_encoded = pd.DataFrame(te_ary, columns=te.columns_)
+
+# Get frequent itemsets using FP-Growth
+frequent_itemsets = fpgrowth(df_encoded, min_support=0.01, use_colnames=True)
+
+# Convert support to actual count
+frequent_itemsets['support_count'] = frequent_itemsets['support'] * len(df)
+
+# Sort by support count
+frequent_itemsets = frequent_itemsets.sort_values(by='support_count', ascending=False)
+
+# Display the results
+print(frequent_itemsets[['itemsets', 'support_count']])
