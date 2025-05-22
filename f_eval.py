@@ -1,65 +1,59 @@
 import pandas as pd
-from prophet import Prophet
-from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
+from prophet import Prophet
+from prophet.diagnostics import cross_validation, performance_metrics
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import matplotlib.pyplot as plt
 
-# Step 1: Load the daily sales dataset
-df = pd.read_excel("sales.xlsx")
+# Load and prepare data
+file_path = "sorted_file.xlsx"
+df = pd.read_excel(file_path)
 df.rename(columns={"date": "ds", "total_orders": "y", "product": "product_name"}, inplace=True)
 df["ds"] = pd.to_datetime(df["ds"])
 
-# Step 2: Convert daily data to monthly totals
-df["ds"] = df["ds"].dt.to_period("M").dt.to_timestamp()
-monthly_df = df.groupby(["product_name", "ds"])["y"].sum().reset_index()
+# Loop over each product
+for product in df['product_name'].unique():
+    print(f"\n=== Evaluating model for product: {product} ===")
 
-# Step 3: Evaluate forecasts product by product
-def evaluate_monthly_forecast(df_monthly):
-    results = []
+    # Subset data for current product
+    product_df = df[df['product_name'] == product][['ds', 'y']].copy()
+    
+    # Check if we have enough data
+    if len(product_df) < 30:
+        print("Not enough data, skipping...")
+        continue
 
-    for product in df_monthly["product_name"].unique():
-        df_prod = df_monthly[df_monthly["product_name"] == product][["ds", "y"]].sort_values("ds")
+    # Train the model
+    model = Prophet()
+    model.fit(product_df)
 
-        # Split into train/test
-        train = df_prod[df_prod["ds"] <= "2024-12-01"]
-        test = df_prod[(df_prod["ds"] > "2024-12-01") & (df_prod["ds"] <= "2025-03-01")]
+    # Make future dataframe and forecast
+    future = model.make_future_dataframe(periods=12, freq='M')
+    forecast = model.predict(future)
 
-        if len(train) >= 6 and train["y"].sum() >= 10 and not test.empty:
-            try:
-                model = Prophet()
-                model.fit(train)
+    # Plot forecast
+    model.plot(forecast)
+    plt.title(f"Forecast for Product: {product}")
+    plt.show()
 
-                future = model.make_future_dataframe(periods=len(test), freq='M')
-                forecast = model.predict(future)[["ds", "yhat"]]
+    # Plot components
+    model.plot_components(forecast)
+    plt.title(f"Components for Product: {product}")
+    plt.show()
 
-                # Align both to first of the month
-                forecast["ds"] = forecast["ds"].dt.to_period("M").dt.to_timestamp()
-                test["ds"] = test["ds"].dt.to_period("M").dt.to_timestamp()
+    # Cross-validation
+    try:
+        df_cv = cross_validation(model, initial='365 days', period='60 days', horizon='90 days')
+        df_metrics = performance_metrics(df_cv)
 
-                merged = pd.merge(test, forecast, on="ds", how="inner").dropna(subset=["y", "yhat"])
+        # Manual metrics
+        mae = mean_absolute_error(df_cv['y'], df_cv['yhat'])
+        mse = mean_squared_error(df_cv['y'], df_cv['yhat'])
+        rmse = np.sqrt(mse)
 
-                if not merged.empty:
-                    y_true = merged["y"]
-                    y_pred = merged["yhat"]
+        print(f"MAE: {mae:.2f} | MSE: {mse:.2f} | RMSE: {rmse:.2f}")
+        print("Prophet metrics summary:")
+        print(df_metrics.head())
 
-                    mae = mean_absolute_error(y_true, y_pred)
-                    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-                    mape = np.mean(np.abs((y_true - y_pred) / y_true.replace(0, np.nan))) * 100
-                    accuracy = 100 - mape
-
-                    results.append({
-                        "product": product,
-                        "MAE": round(mae, 2),
-                        "RMSE": round(rmse, 2),
-                        "MAPE (%)": round(mape, 2),
-                        "Accuracy (%)": round(accuracy, 2)
-                    })
-            except:
-                continue  # skip this product on failure
-
-    return pd.DataFrame(results)
-
-# Step 4: Run and print results
-results_df = evaluate_monthly_forecast(monthly_df)
-print(results_df)
-results_df.to_csv("monthly_forecast_evaluation.csv", index=False)
-
+    except Exception as e:
+        print(f"Cross-validation failed for {product}: {e}")
