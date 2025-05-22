@@ -30,21 +30,28 @@ st.title("📦 Product Bundling & 🤖 Recommendations Dashboard")
 st.subheader("Top Product Bundles")
 for index, row in bundle_itemsets.iterrows():
     with st.container():
-        cols = st.columns([3, 1])
-        with cols[0]:
-            st.markdown(f"**Products:** {', '.join(row['itemsets'])}")
-            st.markdown(f"**Support Count:** {int(row['support_count'])}")
-        with cols[1]:
-            st.button("💡 Mark as Suggested Combo", key=f"bundle_{index}")
+        st.markdown("""
+            <div style='border: 1px solid #ddd; border-radius: 10px; padding: 15px; margin-bottom: 10px; background-color: #f9f9f9;'>
+                <h4 style='margin-bottom: 10px;'>🧃 Bundle #{}</h4>
+                <p><strong>Products:</strong> {}</p>
+                <p><strong>Support Count:</strong> {}</p>
+                <button style='padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 5px;'>💡 Mark as Suggested Combo</button>
+            </div>
+        """.format(index + 1, ', '.join(row['itemsets']), int(row['support_count'])), unsafe_allow_html=True)
 
 # --- Recommendation Cards ---
 st.subheader("Recommended Products")
 for idx, row in rules.iterrows():
     with st.container():
-        cols = st.columns([3, 1])
-        with cols[0]:
-            st.markdown(f"🛒 If customer buys: **{', '.join(row['antecedents'])}**")
-            st.markdown(f"👉 Recommend: **{', '.join(row['consequents'])}**")
-            st.markdown(f"Confidence: {row['confidence']:.2f} | Lift: {row['lift']:.2f}")
-        with cols[1]:
-            st.button("🛍 Add to Cart", key=f"rule_{idx}")
+        st.markdown("""
+            <div style='border: 1px solid #ddd; border-radius: 10px; padding: 15px; margin-bottom: 10px; background-color: #eef6ff;'>
+                <h4 style='margin-bottom: 10px;'>🔁 Recommendation #{}</h4>
+                <p>🛒 <strong>If customer buys:</strong> {}</p>
+                <p>👉 <strong>Recommend:</strong> {}</p>
+                <p><strong>Confidence:</strong> {:.0f}%</p>
+                <div style='margin-top: 10px;'>
+                    <button style='padding: 5px 10px; background-color: #2196F3; color: white; border: none; border-radius: 5px; margin-right: 5px;'>🛍 Add to Cart</button>
+                    <button style='padding: 5px 10px; background-color: #f0ad4e; color: white; border: none; border-radius: 5px;'>🔍 Show Similar Rules</button>
+                </div>
+            </div>
+        """.format(idx + 1, ', '.join(row['antecedents']), ', '.join(row['consequents']), row['confidence'] * 100), unsafe_allow_html=True)
