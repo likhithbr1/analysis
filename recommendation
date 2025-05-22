@@ -24,36 +24,39 @@ rules = association_rules(frequent_itemsets, metric="confidence", min_threshold=
 rules = rules.sort_values(by='confidence', ascending=False)
 
 st.set_page_config(page_title="Product Bundling & Recommendations", layout="wide")
-st.title("📦 Product Bundling & 🤖 Recommendations Dashboard")
+st.title("🧠 Smart Product Suggestions")
 
 # --- Bundle Cards as 3-column grid ---
-st.subheader("Top Product Bundles")
+st.subheader("✨ Popular Product Combos")
 columns = st.columns(3)
 for i, (index, row) in enumerate(bundle_itemsets.iterrows()):
     col = columns[i % 3]
     with col:
         st.markdown(f"""
-            <div style='border: 2px solid #6c757d; border-radius: 12px; padding: 20px; margin: 10px 0; background-color: #f1f3f4; font-size: 18px;'>
-                <p><strong>🧃 Products:</strong> {'<br>'.join(row['itemsets'])}</p>
-                <p><strong>Support Count:</strong> {int(row['support_count'])}</p>
-                <button style='padding: 6px 12px; font-size: 16px; background-color: #28a745; color: white; border: none; border-radius: 8px;'>💡 Mark as Suggested Combo</button>
+            <div style='border: 2px solid #ddd; border-radius: 12px; padding: 20px; margin: 10px 0; background-color: #fdfdfd; font-size: 18px;'>
+                <h4 style='color:#333;'>Bundle with {row['length']} items</h4>
+                <ul style='padding-left: 20px;'>
+                    {''.join([f"<li style='margin-bottom: 6px;'><strong>{item}</strong></li>" for item in row['itemsets']])}
+                </ul>
+                <p><strong>Seen in:</strong> {int(row['support_count'])} orders</p>
+                <button style='padding: 6px 12px; font-size: 15px; background-color: #4CAF50; color: white; border: none; border-radius: 8px;'>💡 Suggest this Combo</button>
             </div>
         """, unsafe_allow_html=True)
 
-# --- Recommendation Network ---
-st.subheader("Product Recommendations")
+# --- Recommendation UI ---
+st.subheader("🔎 Smart Suggestions")
 for idx, row in rules.iterrows():
     with st.container():
-        antecedents = ', '.join(row['antecedents'])
-        consequents = ', '.join(row['consequents'])
+        antecedents = ', '.join([f"<span style='font-weight:bold; color:#0d6efd;'>{a}</span>" for a in row['antecedents']])
+        consequents = ', '.join([f"<span style='font-weight:bold; color:#198754;'>{c}</span>" for c in row['consequents']])
         st.markdown(f"""
-            <div style='border: 2px solid #0d6efd; border-radius: 12px; padding: 20px; margin: 10px 0; background-color: #e7f1ff; font-size: 18px;'>
-                <p><strong>🛒 If customer buys:</strong></p>
-                <p style='color: #0d6efd; font-weight: bold;'>{antecedents}</p>
-                <hr style='border: 1px dashed #0d6efd;'>
-                <p><strong>👉 Recommend:</strong></p>
-                <p style='color: #198754; font-weight: bold;'>{consequents}</p>
-                <p><strong>Confidence:</strong> {row['confidence'] * 100:.0f}%</p>
-                <button style='padding: 6px 12px; font-size: 16px; background-color: #ffc107; color: black; border: none; border-radius: 8px;'>🔍 Show Similar Rules</button>
+            <div style='border: 2px solid #ccc; border-radius: 14px; padding: 24px; margin: 12px 0; background-color: #f7f9fc; font-size: 18px;'>
+                <p><strong>🤔 Customers who bought:</strong></p>
+                <p style='margin-left: 20px;'>{antecedents}</p>
+                <p style='font-size: 24px; text-align: center;'>⬇️</p>
+                <p><strong>Often also buy:</strong></p>
+                <p style='margin-left: 20px;'>{consequents}</p>
+                <p><strong>Chance they'll buy this too:</strong> {row['confidence'] * 100:.0f}%</p>
+                <button style='padding: 6px 12px; font-size: 15px; background-color: #ff9800; color: white; border: none; border-radius: 8px;'>🔍 Show Similar Patterns</button>
             </div>
         """, unsafe_allow_html=True)
