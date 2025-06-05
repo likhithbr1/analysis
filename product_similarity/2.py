@@ -64,6 +64,17 @@ def filter_matches(orion_df, sdp_df, similarity_matrix, threshold):
                 })
     return pd.DataFrame(matches)
 
+
+# Remove Streamlit's default top padding
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="🔍 Product Similarity Analyzer", layout="wide")
 st.title("🔍 Product Similarity Analysis (Excel-style Filtering)")
