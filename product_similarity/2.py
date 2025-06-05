@@ -66,48 +66,31 @@ def filter_matches(orion_df, sdp_df, similarity_matrix, threshold):
 
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="🔍 Product Similarity Analyzer", layout="wide")
-st.title("🔍 Product Similarity Analysis (with Row Filtering)")
-st.markdown("Explore and filter similar products using an interactive grid below.")
+st.title("🔍 Product Similarity Analysis (Excel-style Filtering)")
+st.markdown("Use the 3-dot menu in any column to **filter by matching values**, just like ServiceNow or Excel.")
 
 threshold = st.slider("Similarity Threshold", 0.5, 0.99, SIMILARITY_THRESHOLD_DEFAULT, 0.01)
 
-with st.spinner("Loading and computing similarity (runs once)..."):
+with st.spinner("Loading data and computing similarity (only once)..."):
     orion_df, sdp_df = load_and_prepare_data()
     similarity_matrix = precompute_similarity_matrix(orion_df, sdp_df)
 
-with st.spinner("Filtering based on threshold..."):
+with st.spinner("Filtering matches..."):
     result_df = filter_matches(orion_df, sdp_df, similarity_matrix, threshold)
 
 if result_df.empty:
     st.warning("No similar product pairs found above the threshold.")
     st.stop()
 
-# ---------- AGGRID INTERACTIVE TABLE ----------
-st.subheader("📊 Click a row to filter by Orion Product Code")
-
+# ---------- AGGRID FILTERABLE TABLE ----------
 gb = GridOptionsBuilder.from_dataframe(result_df)
 gb.configure_default_column(filter=True, sortable=True, resizable=True)
-gb.configure_selection("single", use_checkbox=True)
 grid_options = gb.build()
 
-grid_response = AgGrid(
+AgGrid(
     result_df,
     gridOptions=grid_options,
-    height=450,
-    update_mode="MODEL_CHANGED",
+    height=500,
+    enable_enterprise_modules=True,  # Enables full filter UI
     fit_columns_on_grid_load=True
 )
-
-# ---------- HANDLE ROW SELECTION ----------
-if grid_response["selected_rows"]:
-    selected_code = grid_response["selected_rows"][0]["Orion Code"]
-    filtered_df = result_df[result_df["Orion Code"] == selected_code]
-    st.success(f"Showing matches for Orion Product: **{selected_code}**")
-    st.dataframe(filtered_df, use_container_width=True)
-
-    csv = filtered_df.to_csv(index=False)
-    st.download_button("📥 Download Filtered Results", csv, file_name="filtered_results.csv")
-else:
-    st.dataframe(result_df, use_container_width=True)
-    csv = result_df.to_csv(index=False)
-    st.download_button("📥 Download All Results", csv, file_name="similar_products.csv")
