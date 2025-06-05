@@ -1,25 +1,52 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import re
+from sentence_transformers import SentenceTransformer, util
 from sklearn.metrics.pairwise import cosine_similarity
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 # ---------- CONFIG ----------
 SIMILARITY_THRESHOLD_DEFAULT = 0.85
-ORION_CSV = "orion_clean.csv"
-SDP_CSV = "sdp_clean.csv"
-ORION_EMBEDDINGS = "orion_embeddings.npy"
-SDP_EMBEDDINGS = "sdp_embeddings.npy"
+MODEL_NAME = "all-MiniLM-L6-v2"
+ORION_FILE = "Orion_Products.xlsx"
+SDP_FILE = "SDP_Products.xlsx"
 
-# ---------- LOAD PREPROCESSED DATA ----------
+# ---------- TEXT CLEANING ----------
+def clean_text(text):
+    text = str(text).lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+# ---------- LOAD & PREPROCESS ----------
 @st.cache_data
-def load_data_and_embeddings():
-    orion_df = pd.read_csv(ORION_CSV)
-    sdp_df = pd.read_csv(SDP_CSV)
-    orion_embeddings = np.load(ORION_EMBEDDINGS)
-    sdp_embeddings = np.load(SDP_EMBEDDINGS)
+def load_and_prepare_data():
+    orion_df = pd.read_excel(ORION_FILE)
+    sdp_df = pd.read_excel(SDP_FILE)
+
+    orion_df = orion_df.rename(columns={"PRODUCT_CODE": "product_name", "PRODUCT_DSC": "product_description"})
+    sdp_df = sdp_df.rename(columns={"OFFERING_TYPE_CD": "product_name", "OFFERING_DSC": "product_description"})
+
+    orion_df.dropna(subset=["product_description"], inplace=True)
+    sdp_df.dropna(subset=["product_description"], inplace=True)
+
+    orion_df["product_description"] = orion_df["product_description"].apply(clean_text)
+    sdp_df["product_description"] = sdp_df["product_description"].apply(clean_text)
+
+    orion_df["full_text"] = orion_df["product_name"] + " " + orion_df["product_description"]
+    sdp_df["full_text"] = sdp_df["product_name"] + " " + sdp_df["product_description"]
+
+    return orion_df, sdp_df
+
+# ---------- PRECOMPUTE EMBEDDINGS + SIMILARITY ----------
+@st.cache_data
+def precompute_similarity_matrix(orion_df, sdp_df):
+    model = SentenceTransformer(MODEL_NAME)
+    orion_embeddings = model.encode(orion_df["full_text"].tolist(), convert_to_numpy=True)
+    sdp_embeddings = model.encode(sdp_df["full_text"].tolist(), convert_to_numpy=True)
     similarity_matrix = cosine_similarity(orion_embeddings, sdp_embeddings)
-    return orion_df, sdp_df, similarity_matrix
+    return similarity_matrix
 
 # ---------- FILTER MATCHES ----------
 def filter_matches(orion_df, sdp_df, similarity_matrix, threshold):
@@ -29,9 +56,9 @@ def filter_matches(orion_df, sdp_df, similarity_matrix, threshold):
             score = similarity_matrix[i][j]
             if score >= threshold:
                 matches.append({
-                    "Orion Code": orion_df.iloc[i]["PRODUCT_CODE"],
+                    "Orion Code": orion_df.iloc[i]["product_name"],
                     "Orion Description": orion_df.iloc[i]["product_description"],
-                    "SDP Code": sdp_df.iloc[j]["OFFERING_TYPE_CD"],
+                    "SDP Code": sdp_df.iloc[j]["product_name"],
                     "SDP Description": sdp_df.iloc[j]["product_description"],
                     "Similarity Score": round(score, 4)
                 })
@@ -39,52 +66,48 @@ def filter_matches(orion_df, sdp_df, similarity_matrix, threshold):
 
 # ---------- STREAMLIT UI ----------
 st.set_page_config(page_title="🔍 Product Similarity Analyzer", layout="wide")
-st.title("🔍 Product Similarity Analysis (Interactive View)")
-st.markdown("Explore and filter similar products using the interactive table below.")
+st.title("🔍 Product Similarity Analysis (with Row Filtering)")
+st.markdown("Explore and filter similar products using an interactive grid below.")
 
 threshold = st.slider("Similarity Threshold", 0.5, 0.99, SIMILARITY_THRESHOLD_DEFAULT, 0.01)
 
-with st.spinner("Loading data and similarity matrix..."):
-    orion_df, sdp_df, similarity_matrix = load_data_and_embeddings()
+with st.spinner("Loading and computing similarity (runs once)..."):
+    orion_df, sdp_df = load_and_prepare_data()
+    similarity_matrix = precompute_similarity_matrix(orion_df, sdp_df)
 
-with st.spinner("Filtering based on selected threshold..."):
+with st.spinner("Filtering based on threshold..."):
     result_df = filter_matches(orion_df, sdp_df, similarity_matrix, threshold)
 
 if result_df.empty:
-    st.warning("No matches found above the selected threshold.")
+    st.warning("No similar product pairs found above the threshold.")
     st.stop()
 
-# ---------- AGGRID DISPLAY ----------
+# ---------- AGGRID INTERACTIVE TABLE ----------
 st.subheader("📊 Click a row to filter by Orion Product Code")
 
-# Build grid options
 gb = GridOptionsBuilder.from_dataframe(result_df)
 gb.configure_default_column(filter=True, sortable=True, resizable=True)
 gb.configure_selection("single", use_checkbox=True)
 grid_options = gb.build()
 
-# Render AgGrid
 grid_response = AgGrid(
     result_df,
     gridOptions=grid_options,
-    height=400,
-    enable_enterprise_modules=False,
+    height=450,
     update_mode="MODEL_CHANGED",
     fit_columns_on_grid_load=True
 )
 
-# Show filtered view
+# ---------- HANDLE ROW SELECTION ----------
 if grid_response["selected_rows"]:
     selected_code = grid_response["selected_rows"][0]["Orion Code"]
-    st.success(f"Showing all matches for Orion Product Code: **{selected_code}**")
     filtered_df = result_df[result_df["Orion Code"] == selected_code]
+    st.success(f"Showing matches for Orion Product: **{selected_code}**")
     st.dataframe(filtered_df, use_container_width=True)
 
-    # Optionally allow download
     csv = filtered_df.to_csv(index=False)
     st.download_button("📥 Download Filtered Results", csv, file_name="filtered_results.csv")
-
 else:
-    # Show unfiltered data download
+    st.dataframe(result_df, use_container_width=True)
     csv = result_df.to_csv(index=False)
-    st.download_button("📥 Download All Results", csv, file_name="all_results.csv")
+    st.download_button("📥 Download All Results", csv, file_name="similar_products.csv")
