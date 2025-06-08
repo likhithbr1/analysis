@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import Plot from "react-plotly.js";
 import axios from "axios";
+import Plot from "react-plotly.js";
 import {
   Box,
   Typography,
@@ -11,161 +11,131 @@ import {
   CircularProgress,
   Paper,
   Divider,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-  Collapse,
 } from "@mui/material";
 
 const DemandForecast = () => {
-  const [forecastData, setForecastData] = useState([]);
-  const [productList, setProductList] = useState([]);
+  const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
-  const [totalForecast, setTotalForecast] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [showTable, setShowTable] = useState(false);
+  const [forecastData, setForecastData] = useState([]);
+  const [totalForecast, setTotalForecast] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/forecast/data");
-      const rawData = res.data.forecast_data || [];
-      const product = res.data.product || "";
-      const total = res.data.total_forecast || 0;
-
-      setForecastData(rawData);
-      setSelectedProduct(product);
-      setTotalForecast(total);
-
-      // Extract product list from forecast data
-      const uniqueProducts = [
-        ...new Set(rawData.map((item) => item.product_name)),
-      ];
-      setProductList(uniqueProducts);
-    } catch (error) {
-      console.error("Error fetching forecast data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const SOURCE_SYSTEM = "eon"; // hardcoded as per your request
 
   useEffect(() => {
-    fetchData();
+    axios
+      .post("http://localhost:5000/forecast/summary", { source_system: SOURCE_SYSTEM })
+      .then((res) => {
+        setProducts(res.data.products || []);
+        // Automatically select the first product
+        if (res.data.products.length > 0) {
+          setSelectedProduct(res.data.products[0]);
+        }
+      })
+      .catch((err) => console.error("Error fetching products:", err));
   }, []);
 
-  const filteredData = forecastData.filter(
-    (item) => item.product_name === selectedProduct
-  );
+  useEffect(() => {
+    if (!selectedProduct) return;
+    setLoading(true);
+    axios
+      .post("http://localhost:5000/forecast/detail", {
+        source_system: SOURCE_SYSTEM,
+        product: selectedProduct,
+      })
+      .then((res) => {
+        setForecastData(res.data.forecast_data || []);
+        setTotalForecast(res.data.total_forecast || 0);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching forecast:", err);
+        setLoading(false);
+      });
+  }, [selectedProduct]);
 
-  const chartData = [
-    {
-      x: filteredData.map((d) => new Date(d.ds).toISOString()),
-      y: filteredData.map((d) => d.yhat),
-      type: "scatter",
-      mode: "lines",
-      name: "Forecast (yhat)",
-      line: { color: "blue" },
-    },
-    {
-      x: filteredData.map((d) => new Date(d.ds).toISOString()),
-      y: filteredData.map((d) => d.yhat_upper),
-      type: "scatter",
-      mode: "lines",
-      name: "Upper Bound",
-      line: { dash: "dash", color: "lightblue" },
-    },
-    {
-      x: filteredData.map((d) => new Date(d.ds).toISOString()),
-      y: filteredData.map((d) => d.yhat_lower),
-      type: "scatter",
-      mode: "lines",
-      name: "Lower Bound",
-      line: { dash: "dash", color: "lightblue" },
-      fill: "tonexty",
-      fillcolor: "rgba(173,216,230,0.2)",
-    },
-  ];
-
-  if (loading) {
-    return (
-      <Box textAlign="center" mt={10}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const formatDate = (ds) => new Date(ds).toISOString().split("T")[0];
 
   return (
-    <Box sx={{ p: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        📈 30-Day Sales Forecast
+    <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+      <Typography variant="h6" gutterBottom>
+        📈 30-Day Demand Forecast (Source: EON)
       </Typography>
 
-      <FormControl fullWidth sx={{ maxWidth: 400, mb: 3 }}>
+      <FormControl fullWidth margin="normal">
         <InputLabel>Select Product</InputLabel>
         <Select
           value={selectedProduct}
           label="Select Product"
           onChange={(e) => setSelectedProduct(e.target.value)}
         >
-          {productList.map((prod) => (
-            <MenuItem key={prod} value={prod}>
-              {prod}
+          {products.map((product) => (
+            <MenuItem key={product} value={product}>
+              {product}
             </MenuItem>
           ))}
         </Select>
       </FormControl>
 
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        📦 Total Predicted Sales for Next 30 Days:{" "}
-        <strong>{totalForecast.toFixed(2)}</strong> units
-      </Typography>
+      {loading && (
+        <Box display="flex" justifyContent="center" my={3}>
+          <CircularProgress />
+        </Box>
+      )}
 
-      <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
-        <Plot
-          data={chartData}
-          layout={{
-            title: `30-Day Forecast for '${selectedProduct}'`,
-            xaxis: { title: "Date" },
-            yaxis: { title: "Predicted Daily Sales" },
-            hovermode: "x unified",
-          }}
-          useResizeHandler
-          style={{ width: "100%", height: "100%" }}
-        />
-      </Paper>
+      {!loading && forecastData.length > 0 && (
+        <>
+          <Box my={2}>
+            <Typography variant="subtitle1">
+              Total Forecast (30 Days): <strong>{totalForecast}</strong> units
+            </Typography>
+          </Box>
 
-      <Typography
-        variant="subtitle1"
-        sx={{ cursor: "pointer", color: "blue", mb: 1 }}
-        onClick={() => setShowTable(!showTable)}
-      >
-        📄 {showTable ? "Hide Forecast Table" : "Show Forecast Table"}
-      </Typography>
+          <Divider sx={{ mb: 2 }} />
 
-      <Collapse in={showTable}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Forecast (yhat)</TableCell>
-              <TableCell>Lower Bound</TableCell>
-              <TableCell>Upper Bound</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredData.map((row, idx) => (
-              <TableRow key={idx}>
-                <TableCell>{new Date(row.ds).toLocaleDateString()}</TableCell>
-                <TableCell>{row.yhat.toFixed(2)}</TableCell>
-                <TableCell>{row.yhat_lower.toFixed(2)}</TableCell>
-                <TableCell>{row.yhat_upper.toFixed(2)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Collapse>
-    </Box>
+          <Plot
+            data={[
+              {
+                x: forecastData.map((d) => formatDate(d.ds)),
+                y: forecastData.map((d) => d.yhat),
+                type: "scatter",
+                mode: "lines",
+                name: "Forecast",
+                line: { color: "blue" },
+              },
+              {
+                x: forecastData.map((d) => formatDate(d.ds)),
+                y: forecastData.map((d) => d.yhat_upper),
+                type: "scatter",
+                mode: "lines",
+                name: "Upper Bound",
+                line: { dash: "dot", color: "lightblue" },
+              },
+              {
+                x: forecastData.map((d) => formatDate(d.ds)),
+                y: forecastData.map((d) => d.yhat_lower),
+                type: "scatter",
+                mode: "lines",
+                name: "Lower Bound",
+                fill: "tonexty",
+                fillcolor: "rgba(173,216,230,0.2)",
+                line: { dash: "dot", color: "lightblue" },
+              },
+            ]}
+            layout={{
+              title: `Forecast for ${selectedProduct}`,
+              xaxis: { title: "Date" },
+              yaxis: { title: "Predicted Daily Sales" },
+              margin: { t: 50, l: 50, r: 30, b: 50 },
+              hovermode: "x unified",
+              autosize: true,
+            }}
+            useResizeHandler
+            style={{ width: "100%", height: "400px" }}
+          />
+        </>
+      )}
+    </Paper>
   );
 };
 
