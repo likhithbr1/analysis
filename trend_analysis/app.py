@@ -14,10 +14,11 @@ TIME_RANGE_MAP = {
     "2y": timedelta(days=730)
 }
 
-@app.route("/analysis/summary", methods=["GET"])
+@app.route("/analysis/summary", methods=["POST"])
 def trend_summary():
-    source = request.args.get("source_system")
-    analysis_type = request.args.get("analysis_type")
+    data = request.get_json()
+    source = data.get("source_system")
+    analysis_type = data.get("analysis_type")
 
     if not source or analysis_type != "trend_analysis":
         return jsonify({"error": "Missing or invalid parameters"}), 400
@@ -28,12 +29,13 @@ def trend_summary():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/analysis/detail", methods=["GET"])
+@app.route("/analysis/detail", methods=["POST"])
 def trend_detail():
-    source = request.args.get("source_system")
-    analysis_type = request.args.get("analysis_type")
-    product = request.args.get("product")
-    time_range = request.args.get("time_range")
+    data = request.get_json()
+    source = data.get("source_system")
+    analysis_type = data.get("analysis_type")
+    product = data.get("product")
+    time_range = data.get("time_range")
 
     if not all([source, product, time_range]) or analysis_type != "trend_analysis":
         return jsonify({"error": "Missing or invalid parameters"}), 400
