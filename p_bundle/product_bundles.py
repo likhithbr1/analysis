@@ -1,12 +1,15 @@
+# product_bundles.py
 import pandas as pd
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import fpgrowth, association_rules
+import os
 
-# Map source systems to file paths
+# Source system to Excel file mapping
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SOURCE_FILE_MAP = {
-    "eon": "data/orders_details_eon.xlsx",
-    "abc": "data/orders_details_abc.xlsx",
-    "xyz": "data/orders_details_xyz.xlsx"
+    "eon": os.path.join(BASE_DIR, "data/orders_details.xlsx"),
+    "abc": os.path.join(BASE_DIR, "data/orders_details_abc.xlsx"),
+    "xyz": os.path.join(BASE_DIR, "data/orders_details_xyz.xlsx")
 }
 
 CONFIDENCE_THRESHOLD = 0.6
@@ -15,7 +18,6 @@ SUPPORT_THRESHOLD = 0.05
 def load_and_prepare_data(source_system):
     if source_system not in SOURCE_FILE_MAP:
         raise ValueError(f"Unknown source system: {source_system}")
-    
     df = pd.read_excel(SOURCE_FILE_MAP[source_system])
     df['Items Bought'] = df['Items Bought'].apply(lambda x: x.split(','))
     return df
@@ -30,10 +32,12 @@ def get_product_bundles(source_system):
     df_encoded = get_encoded_transactions(df)
 
     itemsets = fpgrowth(df_encoded, min_support=SUPPORT_THRESHOLD, use_colnames=True)
-    itemsets['support_count'] = itemsets['support'] * len(df)
+    itemsets['support_count'] = (itemsets['support'] * len(df)).astype(int)
     itemsets['length'] = itemsets['itemsets'].apply(lambda x: len(x))
 
     bundles = itemsets[itemsets['length'] >= 2].sort_values(by='length', ascending=False)
+    # Convert frozensets to list for JSON serialization
+    bundles['itemsets'] = bundles['itemsets'].apply(lambda x: list(x))
     return bundles.head(20).to_dict(orient="records")
 
 def get_recommendations(source_system):
