@@ -35,18 +35,24 @@ const DemandForecast = () => {
   const [totalForecast, setTotalForecast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isTableOpen, setIsTableOpen] = useState(false);
-  const [showForecast, setShowForecast] = useState(false); // new trigger
+  const [showForecast, setShowForecast] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true); // NEW
 
   const SOURCE_SYSTEM = "eon";
 
   useEffect(() => {
+    setLoadingProducts(true);
     axios
       .post("http://localhost:5000/forecast/summary", { source_system: SOURCE_SYSTEM })
       .then((res) => {
         const sortedProducts = (res.data.products || []).sort();
         setProducts(sortedProducts);
+        setLoadingProducts(false);
       })
-      .catch((err) => console.error("Error fetching products:", err));
+      .catch((err) => {
+        console.error("Error fetching products:", err);
+        setLoadingProducts(false);
+      });
   }, []);
 
   const handleViewForecast = () => {
@@ -77,19 +83,32 @@ const DemandForecast = () => {
         <h1 className="text-3xl font-bold mb-8">📈 30-Day Sales Forecast</h1>
 
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">
+          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
             🔍 Select a product to view forecast
+            {loadingProducts && (
+              <span className="animate-spin inline-block w-4 h-4 border-2 border-t-transparent rounded-full border-gray-400" />
+            )}
           </label>
-          <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+          <Select
+            value={selectedProduct}
+            onValueChange={setSelectedProduct}
+            disabled={loadingProducts}
+          >
             <SelectTrigger className="w-full max-w-md">
               <SelectValue placeholder="Select a product" />
             </SelectTrigger>
             <SelectContent style={{ maxHeight: "250px", overflowY: "auto" }}>
-              {products.map((product) => (
-                <SelectItem key={product} value={product}>
-                  {product}
+              {loadingProducts ? (
+                <SelectItem disabled value="">
+                  Loading products...
                 </SelectItem>
-              ))}
+              ) : (
+                products.map((product) => (
+                  <SelectItem key={product} value={product}>
+                    {product}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
 
@@ -221,3 +240,4 @@ const DemandForecast = () => {
 };
 
 export default DemandForecast;
+
