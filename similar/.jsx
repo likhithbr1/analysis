@@ -3,8 +3,8 @@ import { Box, Typography, CircularProgress, Paper } from "@mui/material";
 import axios from "axios";
 import { AgGridReact } from "ag-grid-react";
 
-import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-alpine.css";
+import "ag-grid-community/styles/ag-grid.css"; // ⚠️ Comment/remove if using new theming
+import "ag-grid-community/styles/ag-theme-quartz.css";
 import "ag-grid-enterprise";
 
 const ProductSimilarity = () => {
@@ -92,19 +92,17 @@ const ProductSimilarity = () => {
     filter: true,
     sortable: true,
     resizable: true,
+    floatingFilter: true,
   };
 
   const onGridReady = (params) => {
     gridRef.current = params.api;
-    params.api.sizeColumnsToFit(); // Auto-fit columns
+    params.api.sizeColumnsToFit();
   };
 
   return (
-    <Box p={3}>
-      <Typography variant="h4" mb={2}>🔍 Product Similarity Analysis</Typography>
-      <Typography mb={3}>
-        Compare products between Orion and SDP systems using semantic similarity. Threshold is fixed at 0.85.
-      </Typography>
+    <Box p={2}>
+      <Typography variant="h5" mb={1}>🔍 Product Similarity Analysis</Typography>
 
       {loading ? (
         <Box display="flex" justifyContent="center" mt={4}>
@@ -112,20 +110,24 @@ const ProductSimilarity = () => {
         </Box>
       ) : (
         <Paper elevation={3}>
-          <div
-            className="ag-theme-alpine"
-            style={{ height: 600, width: "100%" }}
-          >
-            <AgGridReact
-              rowData={rowData}
-              columnDefs={columnDefs}
-              defaultColDef={defaultColDef}
-              domLayout="autoHeight"
-              animateRows={true}
-              pagination={true}
-              paginationPageSize={20}
-              onGridReady={onGridReady}
-            />
+          <div style={{ height: "600px", width: "100%", overflow: "auto" }}>
+            <div
+              className="ag-theme-quartz" // or "ag-theme-alpine" if using legacy
+              style={{ height: "100%", width: "100%" }}
+            >
+              <AgGridReact
+                ref={gridRef}
+                rowData={rowData}
+                columnDefs={columnDefs}
+                defaultColDef={defaultColDef}
+                domLayout="normal"
+                animateRows={true}
+                pagination={true}
+                paginationPageSize={20}
+                onGridReady={onGridReady}
+                suppressRowClickSelection={true}
+              />
+            </div>
           </div>
         </Paper>
       )}
@@ -134,3 +136,4 @@ const ProductSimilarity = () => {
 };
 
 export default ProductSimilarity;
+
