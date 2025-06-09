@@ -7,7 +7,7 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-alpine.css";
 import "ag-grid-enterprise";
 
-import "../styles/agrid-custom.css"; // Make sure you have this file
+import "../styles/agrid-custom.css"; // Optional for filter layout fixes
 
 const ProductSimilarity = () => {
   const [rowData, setRowData] = useState([]);
@@ -47,7 +47,7 @@ const ProductSimilarity = () => {
       cellStyle: {
         backgroundColor: "#f5f5f5",
         fontWeight: "bold",
-        textAlign: "center"
+        textAlign: "center",
       },
     },
     {
@@ -117,19 +117,18 @@ const ProductSimilarity = () => {
         </Box>
       ) : (
         <Paper elevation={3}>
-          {/* ✅ Use autoHeight to let it expand with content like a chat message */}
-          <div className="ag-theme-alpine">
+          <Box className="ag-theme-alpine" sx={{ width: "100%" }}>
             <AgGridReact
               rowData={rowData}
               columnDefs={columnDefs}
               defaultColDef={defaultColDef}
               animateRows={true}
               pagination={true}
-              paginationPageSize={50}
-              domLayout="autoHeight"
+              paginationAutoPageSize={true} // ✅ Auto page size to avoid overflow
+              domLayout="autoHeight"         // ✅ Prevents grid from forcing its own scroll
               onGridReady={onGridReady}
             />
-          </div>
+          </Box>
         </Paper>
       )}
     </Box>
@@ -137,3 +136,4 @@ const ProductSimilarity = () => {
 };
 
 export default ProductSimilarity;
+
