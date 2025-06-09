@@ -1,0 +1,25 @@
+/* Fix filter and search fields overlapping */
+.ag-theme-alpine .ag-floating-filter-full-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+/* Center align Sl No column text */
+.ag-theme-alpine .ag-cell[col-id="slNo"] {
+  text-align: center;
+  font-weight: bold;
+  background-color: #f5f5f5;
+}
+
+/* Optional: Better font smoothing for entire grid */
+.ag-theme-alpine {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Optional: Add subtle row hover effect */
+.ag-theme-alpine .ag-row-hover {
+  background-color: #f0f8ff !important;
+}
