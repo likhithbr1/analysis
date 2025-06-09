@@ -35,6 +35,7 @@ const DemandForecast = () => {
   const [totalForecast, setTotalForecast] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isTableOpen, setIsTableOpen] = useState(false);
+  const [showForecast, setShowForecast] = useState(false); // new trigger
 
   const SOURCE_SYSTEM = "eon";
 
@@ -44,16 +45,14 @@ const DemandForecast = () => {
       .then((res) => {
         const sortedProducts = (res.data.products || []).sort();
         setProducts(sortedProducts);
-        if (sortedProducts.length > 0) {
-          setSelectedProduct(sortedProducts[0]);
-        }
       })
       .catch((err) => console.error("Error fetching products:", err));
   }, []);
 
-  useEffect(() => {
+  const handleViewForecast = () => {
     if (!selectedProduct) return;
     setLoading(true);
+    setShowForecast(true);
     axios
       .post("http://localhost:5000/forecast/detail", {
         source_system: SOURCE_SYSTEM,
@@ -68,7 +67,7 @@ const DemandForecast = () => {
         console.error("Error fetching forecast:", err);
         setLoading(false);
       });
-  }, [selectedProduct]);
+  };
 
   const formatDate = (ds) => new Date(ds).toISOString().split("T")[0];
 
@@ -85,7 +84,7 @@ const DemandForecast = () => {
             <SelectTrigger className="w-full max-w-md">
               <SelectValue placeholder="Select a product" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent style={{ maxHeight: "250px", overflowY: "auto" }}>
               {products.map((product) => (
                 <SelectItem key={product} value={product}>
                   {product}
@@ -93,6 +92,16 @@ const DemandForecast = () => {
               ))}
             </SelectContent>
           </Select>
+
+          <div className="mt-4">
+            <Button
+              variant="default"
+              onClick={handleViewForecast}
+              disabled={!selectedProduct || loading}
+            >
+              View Forecast
+            </Button>
+          </div>
         </div>
 
         {loading && (
@@ -101,7 +110,7 @@ const DemandForecast = () => {
           </div>
         )}
 
-        {!loading && forecastData.length > 0 && (
+        {!loading && showForecast && forecastData.length > 0 && (
           <>
             <div className="mb-6">
               <h3 className="text-xl font-semibold">
@@ -113,7 +122,7 @@ const DemandForecast = () => {
               </h3>
             </div>
 
-            <div className="mb-6 w-full">
+            <div className="mb-8 w-full">
               <Plot
                 data={[
                   {
@@ -144,22 +153,15 @@ const DemandForecast = () => {
                   },
                 ]}
                 layout={{
-                  title: {
-                    text: `30-Day Forecast for '${selectedProduct}'`,
-                    font: { size: 18 },
-                    pad: { t: 20, b: 10 },
-                  },
-                  xaxis: { title: "Date" },
-                  yaxis: { title: "Predicted Daily Sales" },
-                  legend: {
-                    orientation: "h",
-                    x: 0,
-                    y: 1.15,
-                  },
-                  margin: { t: 80, l: 60, r: 40, b: 60 },
+                  title: { text: null, font: { size: 18 } },
+                  xaxis: { title: { text: "Date", font: { size: 14 } } },
+                  yaxis: { title: { text: "Predicted Daily Sales", font: { size: 14 } } },
+                  legend: { orientation: "h", x: 0, y: 1.15 },
+                  margin: { t: 80, l: 80, r: 40, b: 80 },
                   hovermode: "x unified",
                   autosize: true,
                   font: { size: 12 },
+                  height: 500,
                 }}
                 useResizeHandler
                 style={{ width: "100%" }}
@@ -167,48 +169,50 @@ const DemandForecast = () => {
               />
             </div>
 
-            <Collapsible open={isTableOpen} onOpenChange={setIsTableOpen}>
-              <CollapsibleTrigger asChild>
-                <Button variant="outline" className="w-full justify-between mb-4">
-                  <span>📄 Show Forecast Table</span>
-                  {isTableOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="transition-all duration-300">
-                <Card>
-                  <CardContent className="p-0">
-                    <div className="max-h-96 overflow-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Forecast (yhat)</TableHead>
-                            <TableHead>Lower Bound</TableHead>
-                            <TableHead>Upper Bound</TableHead>
-                            <TableHead>Product</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {forecastData.map((row, index) => (
-                            <TableRow key={index}>
-                              <TableCell>{formatDate(row.ds)}</TableCell>
-                              <TableCell>{row.yhat?.toFixed(4)}</TableCell>
-                              <TableCell>{row.yhat_lower?.toFixed(4)}</TableCell>
-                              <TableCell>{row.yhat_upper?.toFixed(4)}</TableCell>
-                              <TableCell>{selectedProduct}</TableCell>
+            <div className="mt-8">
+              <Collapsible open={isTableOpen} onOpenChange={setIsTableOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between mb-4">
+                    <span>📄 Show Forecast Table</span>
+                    {isTableOpen ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="transition-all duration-300">
+                  <Card>
+                    <CardContent className="p-0">
+                      <div className="max-h-96 overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Forecast (yhat)</TableHead>
+                              <TableHead>Lower Bound</TableHead>
+                              <TableHead>Upper Bound</TableHead>
+                              <TableHead>Product</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              </CollapsibleContent>
-            </Collapsible>
+                          </TableHeader>
+                          <TableBody>
+                            {forecastData.map((row, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{formatDate(row.ds)}</TableCell>
+                                <TableCell>{row.yhat?.toFixed(4)}</TableCell>
+                                <TableCell>{row.yhat_lower?.toFixed(4)}</TableCell>
+                                <TableCell>{row.yhat_upper?.toFixed(4)}</TableCell>
+                                <TableCell>{selectedProduct}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           </>
         )}
       </div>
