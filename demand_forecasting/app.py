@@ -1,14 +1,22 @@
-# app.py
+import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import timedelta
 
+# Import core logic from your old app
+from core_logic import init_all_db_resources, process_question
+
+# Import analytics modules
 from trend_analysis import generate_summary, generate_detail, get_valid_sources
 from demand_forecast import get_forecast_summary, get_forecast_detail
+from product_bundles import get_product_bundles, get_recommendations
+from product_similarity import compute_product_similarity
 
+# Initialize app
 app = Flask(__name__)
 CORS(app)
 
+# Time range mapping
 TIME_RANGE_MAP = {
     "1w": timedelta(weeks=1),
     "1m": timedelta(days=30),
@@ -16,8 +24,35 @@ TIME_RANGE_MAP = {
     "2y": timedelta(days=730)
 }
 
-### ----- TREND ANALYSIS ROUTES ----- ###
+### ----- HEALTH CHECK ROUTE ----- ###
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"})
 
+### ----- LLM QUERY ROUTE ----- ###
+@app.route("/api/query", methods=["POST"])
+def handle_query():
+    try:
+        data = request.get_json()
+
+        if not data or "question" not in data:
+            return jsonify({"error": "Missing 'question' in request body"}), 400
+
+        question = data["question"].strip()
+        if not question:
+            return jsonify({"error": "Empty question"}), 400
+
+        selected_dbs = data.get("selected_dbs", [])
+        if not selected_dbs:
+            return jsonify({"error": "No databases selected"}), 400
+
+        result = process_question(question, selected_dbs)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500)
+
+### ----- TREND ANALYSIS ROUTES ----- ###
 @app.route("/analysis/summary", methods=["POST"])
 def trend_summary():
     data = request.get_json()
@@ -58,7 +93,6 @@ def list_sources():
     return jsonify(get_valid_sources())
 
 ### ----- DEMAND FORECASTING ROUTES ----- ###
-
 @app.route("/forecast/summary", methods=["POST"])
 def forecast_summary():
     data = request.get_json()
@@ -88,7 +122,55 @@ def forecast_detail():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+### ----- PRODUCT BUNDLING ROUTES ----- ###
+@app.route("/bundles", methods=["POST"])
+def fetch_bundles():
+    data = request.get_json()
+    source = data.get("source_system")
+
+    if not source:
+        return jsonify({"error": "Missing source_system"}), 400
+
+    try:
+        bundles = get_product_bundles(source)
+        return jsonify({"bundles": bundles})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/recommendations", methods=["POST"])
+def fetch_recommendations():
+    data = request.get_json()
+    source = data.get("source_system")
+
+    if not source:
+        return jsonify({"error": "Missing source_system"}), 400
+
+    try:
+        recommendations = get_recommendations(source)
+        return jsonify({"recommendations": recommendations})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+### ----- PRODUCT SIMILARITY ROUTE ----- ###
+@app.route("/similarity", methods=["GET"])
+def get_similarity():
+    try:
+        matches_df = compute_product_similarity()
+        return jsonify({"matches": matches_df.to_dict(orient="records")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 ### ----- MAIN ----- ###
+def main():
+    print("🚀 Initializing database resources...")
+    init_all_db_resources()
+    print("🚀 Starting Flask server on port 5000...")
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=False)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStopping Flask server...")
+        print("Server stopped.")
+
