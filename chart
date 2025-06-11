@@ -94,3 +94,74 @@ def process_question(question: str, selected_dbs: List[str]) -> Dict[str, Any]:
             "db_results": {r["db"]: r["results"] for r in all_results},
             "charts": figures_json
         }
+
+
+
+
+
+
+
+
+import json
+import requests
+import pandas as pd
+
+def generate_chart_suggestions_singledb(question: str, df: pd.DataFrame) -> dict:
+    # Extract column names and data types
+    column_types = {col: str(dtype) for col, dtype in df.dtypes.items()}
+    column_str = "\n".join([f"- {col}: {dtype}" for col, dtype in column_types.items()])
+
+    # Build the Gemini-compatible prompt
+    prompt = f"""
+You are a data visualization assistant.
+
+Given the following user question and a DataFrame returned from a SQL query, suggest all suitable Plotly Express chart types to visualize the query results. For each chart, provide a JSON object with a "chart_type" matching a Plotly Express function name (e.g., "bar", "line", "scatter", "histogram", "box", "pie", etc.), and any relevant keyword arguments like "x", "y", "z", "color", "size", "dimensions", "names", "values", "path", etc.
+
+Supported Plotly Express chart types: bar, line, scatter, histogram, box, pie, density_heatmap, area, funnel, treemap, sunburst, violin, scatter_3d, surface, parallel_coordinates, parallel_categories, choropleth, choropleth_mapbox.
+
+### User Question:
+{question}
+
+### DataFrame Columns (name: type):
+{column_str}
+
+### Instructions:
+- Use only the listed columns (do not invent column names)
+- Base your suggestions on the column types: categorical vs numeric vs datetime
+- Recommend all relevant charts based on the user question
+- Output only a JSON object with a key "charts" containing a list of chart configs
+
+### Response Format:
+{{
+  "charts": [
+    {{ "chart_type": "bar", "x": "category", "y": "product_count" }},
+    {{ "chart_type": "pie", "names": "category", "values": "product_count" }}
+  ]
+}}
+"""
+
+    # Send prompt to Gemini
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(GEMINI_URL, headers=headers, json=payload)
+    response.raise_for_status()
+    data = response.json()
+
+    charts_json = None
+    if "candidates" in data and data["candidates"]:
+        candidate = data["candidates"][0]
+        content = candidate.get("content")
+        if isinstance(content, dict) and "parts" in content:
+            charts_json = content["parts"][0].get("text")
+        elif isinstance(content, str):
+            charts_json = content
+
+    if charts_json:
+        try:
+            return json.loads(charts_json)
+        except json.JSONDecodeError:
+            cleaned = charts_json.strip().strip("```json").strip("```")
+            return json.loads(cleaned)
+
+    return {"charts": []}
+
