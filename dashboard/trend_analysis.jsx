@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, TrendingUp, Expand, Minimize2 } from 'lucide-react';
+import { Search, TrendingUp } from 'lucide-react';
 
 const TrendAnalysis = () => {
   const [summaryData, setSummaryData] = useState([]);
@@ -17,7 +17,6 @@ const TrendAnalysis = () => {
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [sourceSystem, setSourceSystem] = useState('eon');
 
   const fetchSummary = async () => {
@@ -67,8 +66,6 @@ const TrendAnalysis = () => {
     }
   };
 
-  const toggleFullscreen = () => setIsFullscreen(!isFullscreen);
-
   const renderSparkline = (data, color) => (
     <div className="h-10 w-full">
       <Plot
@@ -90,7 +87,7 @@ const TrendAnalysis = () => {
         }}
         config={{ displayModeBar: false, responsive: true }}
         style={{ width: '100%', height: '100%' }}
-        key={`sparkline-${isFullscreen ? 'fs' : 'normal'}-${Date.now()}`}
+        key={`sparkline-${Date.now()}`}
       />
     </div>
   );
@@ -99,27 +96,13 @@ const TrendAnalysis = () => {
     item.product.toLowerCase().includes(search.toLowerCase())
   );
 
-  const containerClasses = clsx(
-    "bg-background p-4 space-y-4",
-    {
-      "fixed inset-0 z-[9999] overflow-auto bg-white": isFullscreen,
-      "min-h-screen": !isFullscreen
-    }
-  );
+  const containerClasses = "bg-background p-4 space-y-4 min-h-screen";
 
   if (selectedProduct && detailData) {
     return (
       <div className={containerClasses}>
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4">
           <h1 className="text-4xl font-bold">📈 Product Sales Trend Dashboard</h1>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleFullscreen}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
-            {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Expand className="h-5 w-5" />}
-          </Button>
         </div>
 
         <div className="space-y-3">
@@ -153,7 +136,6 @@ const TrendAnalysis = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Left: Chart */}
                     <div className="bg-gradient-to-br from-white to-blue-50 rounded-xl shadow-xl p-4">
                       <h3 className="text-lg font-bold text-blue-700 mb-2 flex items-center gap-2">
                         <TrendingUp className="h-5 w-5" />
@@ -177,7 +159,6 @@ const TrendAnalysis = () => {
                       </ResponsiveContainer>
                     </div>
 
-                    {/* Right: Metrics */}
                     <div className="bg-gradient-to-br from-white to-purple-50 rounded-xl shadow-xl p-4">
                       <h3 className="text-lg font-bold text-purple-700 mb-4 flex items-center gap-2">
                         <TrendingUp className="h-5 w-5" />
@@ -212,16 +193,8 @@ const TrendAnalysis = () => {
 
   return (
     <div className={containerClasses}>
-      <div className="flex items-center justify-between">
+      <div className="mb-6">
         <h1 className="text-4xl font-bold">📈 Product Sales Trend Dashboard</h1>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleFullscreen}
-          className="p-2 hover:bg-gray-100 rounded-full"
-        >
-          {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Expand className="h-5 w-5" />}
-        </Button>
       </div>
 
       <div className="mb-6">
@@ -306,3 +279,4 @@ const TrendAnalysis = () => {
 };
 
 export default TrendAnalysis;
+
