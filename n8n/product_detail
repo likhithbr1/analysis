@@ -1,0 +1,71 @@
+from flask import Flask, jsonify, request
+import pandas as pd
+import os
+
+app = Flask(__name__)
+
+# Base directory where your CSVs are stored
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Map of source system to file names
+SOURCE_FILES = {
+    "eon": "product_classification_eon.csv",
+    "orion": "product_classification_orion.csv",
+    "sdp": "product_classification_sdp.csv"
+}
+
+def load_products():
+    product_catalog = {}
+    for source, filename in SOURCE_FILES.items():
+        file_path = os.path.join(BASE_DIR, filename)
+        if os.path.exists(file_path):
+            df = pd.read_csv(file_path)
+            df['source_system'] = source
+            products = df['product'].dropna().unique().tolist()
+            product_catalog[source] = products
+        else:
+            product_catalog[source] = []
+    return product_catalog
+
+def find_product_details(product_name):
+    """
+    Searches all source CSVs for the given product and returns matching rows as dicts.
+    """
+    result_rows = []
+    if not product_name:
+        return result_rows
+
+    for source, filename in SOURCE_FILES.items():
+        file_path = os.path.join(BASE_DIR, filename)
+        if os.path.exists(file_path):
+            df = pd.read_csv(file_path)
+            df['source_system'] = source
+
+            matched = df[df['product'].str.strip().str.lower() == product_name.strip().lower()]
+            if not matched.empty:
+                result_rows.extend(matched.to_dict(orient='records'))
+
+    return result_rows
+
+@app.route('/api/products', methods=['GET'])
+def get_product_catalog():
+    catalog = load_products()
+    return jsonify(catalog)
+
+@app.route('/api/product-details', methods=['POST'])
+def get_product_details():
+    data = request.get_json()
+    product_query = data.get('product')
+
+    if not product_query:
+        return jsonify({"error": "Missing 'product' in request body"}), 400
+
+    results = find_product_details(product_query)
+
+    if not results:
+        return jsonify({"message": f"No results found for product '{product_query}'"}), 404
+
+    return jsonify(results), 200
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
