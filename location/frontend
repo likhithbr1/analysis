@@ -1,71 +1,88 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Plot from 'react-plotly.js';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Select, SelectItem } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
-const Dashboard = () => {
+const InsightsPanel = () => {
   const [filters, setFilters] = useState({
-    source_system: 'sdp',
+    source_system: '',
     time_range: '1 year',
     product: 'All',
     brand: 'All',
     state: 'All',
-    country: 'All',
+    country: 'All'
   });
-  const [filterOptions, setFilterOptions] = useState({ products: [], brands: [], states: [], countries: [] });
-  const [data, setData] = useState({ product_summary: [], brand_summary: [], location_summary: [], trend_data: [] });
-  const [locationView, setLocationView] = useState('map');
+  const [filterOptions, setFilterOptions] = useState({});
+  const [data, setData] = useState({});
+  const [canFetchAnalytics, setCanFetchAnalytics] = useState(false);
+
+  const handleChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+    if (field !== 'source_system') setCanFetchAnalytics(false);
+  };
+
+  const clearFilters = () => {
+    setFilters(prev => ({
+      ...prev,
+      time_range: '1 year',
+      product: 'All',
+      brand: 'All',
+      state: 'All',
+      country: 'All'
+    }));
+    setCanFetchAnalytics(false);
+  };
 
   useEffect(() => {
-    axios.get('/api/filters', { params: { source_system: filters.source_system } }).then(res => {
-      setFilterOptions(res.data);
-    });
+    if (filters.source_system) {
+      axios.get(`http://localhost:5000/api/filters?source_system=${filters.source_system}`)
+        .then(res => setFilterOptions(res.data))
+        .catch(err => console.error('Error loading filters', err));
+    }
   }, [filters.source_system]);
 
-  useEffect(() => {
-    axios.post('/api/analytics', filters).then(res => {
-      setData(res.data);
-    });
-  }, [filters]);
+  const fetchAnalytics = () => {
+    axios.post('http://localhost:5000/api/analytics', filters)
+      .then(res => setData(res.data))
+      .catch(err => console.error('Error loading analytics data', err));
+  };
 
-  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
-
-  const renderCombinedBar = (df, xKey, title) => {
-    const x = df.map(row => row[xKey]);
-    const orders = df.map(row => row.Total_orders);
-    const revenueM = df.map(row => row.MRC_sum / 1_000_000);
-    const revenueRaw = df.map(row => row.MRC_sum);
+  const renderChart = (title, chartData, xKey) => {
+    const data1 = chartData.map(d => ({ x: d[xKey], y: d.Total_orders }));
+    const data2 = chartData.map(d => ({ x: d[xKey], y: d.MRC_sum / 1_000_000, customdata: d.MRC_sum }));
 
     return (
       <Plot
         data={[
           {
-            x,
-            y: orders,
-            name: 'Total Orders',
             type: 'bar',
+            name: 'Total Orders',
+            x: data1.map(p => p.x),
+            y: data1.map(p => p.y),
             marker: { color: '#1f77b4' },
-            hovertemplate: 'Orders: %{y:.2f}<extra></extra>',
+            yaxis: 'y1',
+            hovertemplate: 'Orders: %{y}<extra></extra>'
           },
           {
-            x,
-            y: revenueM,
-            name: 'Revenue ($M)',
             type: 'bar',
+            name: 'Revenue ($M)',
+            x: data2.map(p => p.x),
+            y: data2.map(p => p.y),
+            customdata: data2.map(p => p.customdata),
             marker: { color: '#2ca02c' },
-            customdata: revenueRaw,
-            hovertemplate: 'Revenue: $%{customdata:,.0f}<extra></extra>',
-          },
+            yaxis: 'y2',
+            hovertemplate: 'Revenue: $%{customdata:,.0f}<extra></extra>'
+          }
         ]}
         layout={{
           title,
           barmode: 'group',
           height: 600,
-          bargap: 0.2,
           xaxis: { title: xKey, tickangle: -30 },
-          yaxis: { title: 'Total Orders' },
+          yaxis: { title: 'Total Orders', side: 'left' },
+          yaxis2: { title: 'Revenue ($M)', overlaying: 'y', side: 'right' }
         }}
         useResizeHandler
         style={{ width: '100%' }}
@@ -73,39 +90,39 @@ const Dashboard = () => {
     );
   };
 
-  const renderTrendLine = () => {
-    const x = data.trend_data.map(d => d.CREATED_MONTH);
-    const orders = data.trend_data.map(d => d.Total_orders);
-    const revenue = data.trend_data.map(d => d.MRC_sum / 1_000_000);
-
+  const renderTrendChart = () => {
+    const df = data.trend_data || [];
+    const x = df.map(p => p.CREATED_MONTH);
     return (
       <Plot
         data={[
           {
             x,
-            y: orders,
-            name: 'Total Orders',
+            y: df.map(p => p.Total_orders),
             type: 'scatter',
             mode: 'lines+markers',
+            name: 'Total Orders',
             line: { color: '#1f77b4' },
-            hovertemplate: 'Orders: %{y:.2f}<br>Date: %{x|%b %Y}<extra></extra>',
+            yaxis: 'y1',
+            hovertemplate: 'Orders: %{y}<br>Date: %{x}<extra></extra>'
           },
           {
             x,
-            y: revenue,
-            name: 'Revenue ($M)',
+            y: df.map(p => p.MRC_sum / 1_000_000),
             type: 'scatter',
             mode: 'lines+markers',
+            name: 'Revenue ($M)',
             line: { color: '#2ca02c', dash: 'dash' },
-            hovertemplate: 'Revenue: $%{y:.2f}M<br>Date: %{x|%b %Y}<extra></extra>',
-          },
+            yaxis: 'y2',
+            hovertemplate: 'Revenue: $%{y:.2f}M<br>Date: %{x}<extra></extra>'
+          }
         ]}
         layout={{
           title: 'Monthly Trend: Orders vs Revenue',
-          height: 600,
           xaxis: { title: 'Month' },
-          yaxis: { title: 'Total Orders' },
-          yaxis2: { title: 'Revenue ($M)', overlaying: 'y', side: 'right', showgrid: false },
+          yaxis: { title: 'Total Orders', side: 'left' },
+          yaxis2: { title: 'Revenue ($M)', overlaying: 'y', side: 'right' },
+          height: 600
         }}
         useResizeHandler
         style={{ width: '100%' }}
@@ -114,61 +131,78 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">SDP Analytics Dashboard</h1>
-
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Select label="Time Range" value={filters.time_range} onValueChange={v => handleFilterChange('time_range', v)}>
-          {['6 months', '1 year', '2 years', 'All'].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+    <div className="p-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <Select onValueChange={v => handleChange('source_system', v)} value={filters.source_system}>
+          <SelectTrigger><SelectValue placeholder="Source System" /></SelectTrigger>
+          <SelectContent>
+            {['sdp', 'orion', 'eon'].map(k => <SelectItem key={k} value={k}>{k.toUpperCase()}</SelectItem>)}
+          </SelectContent>
         </Select>
-        <Select label="Product" value={filters.product} onValueChange={v => handleFilterChange('product', v)}>
-          {['All', ...filterOptions.products].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        <Select onValueChange={v => handleChange('time_range', v)} value={filters.time_range}>
+          <SelectTrigger><SelectValue placeholder="Time Range" /></SelectTrigger>
+          <SelectContent>
+            {['6 months', '1 year', '2 years', 'All'].map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+          </SelectContent>
         </Select>
-        <Select label="Brand" value={filters.brand} onValueChange={v => handleFilterChange('brand', v)}>
-          {['All', ...filterOptions.brands].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        <Select onValueChange={v => handleChange('product', v)} value={filters.product}>
+          <SelectTrigger><SelectValue placeholder="Product" /></SelectTrigger>
+          <SelectContent>
+            {['All'].concat(filterOptions.products || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+          </SelectContent>
         </Select>
-        <Select label="State" value={filters.state} onValueChange={v => handleFilterChange('state', v)}>
-          {['All', ...filterOptions.states].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        <Select onValueChange={v => handleChange('brand', v)} value={filters.brand}>
+          <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
+          <SelectContent>
+            {['All'].concat(filterOptions.brands || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+          </SelectContent>
         </Select>
-        <Select label="Country" value={filters.country} onValueChange={v => handleFilterChange('country', v)}>
-          {['All', ...filterOptions.countries].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        <Select onValueChange={v => handleChange('state', v)} value={filters.state}>
+          <SelectTrigger><SelectValue placeholder="State" /></SelectTrigger>
+          <SelectContent>
+            {['All'].concat(filterOptions.states || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select onValueChange={v => handleChange('country', v)} value={filters.country}>
+          <SelectTrigger><SelectValue placeholder="Country" /></SelectTrigger>
+          <SelectContent>
+            {['All'].concat(filterOptions.countries || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+          </SelectContent>
         </Select>
       </div>
 
-      <Tabs defaultValue="location">
-        <TabsList>
-          <TabsTrigger value="location">Location Wise</TabsTrigger>
-          <TabsTrigger value="product">Product Wise</TabsTrigger>
-          <TabsTrigger value="brand">Brand Wise</TabsTrigger>
-          <TabsTrigger value="trend">Trend Analysis</TabsTrigger>
-        </TabsList>
+      <div className="flex gap-4 mb-6">
+        <Button onClick={() => setCanFetchAnalytics(true)}>Apply Filters</Button>
+        <Button variant="outline" onClick={clearFilters}>Clear Filters</Button>
+      </div>
 
-        <TabsContent value="location">
-          <RadioGroup defaultValue="map" onValueChange={setLocationView} className="mb-4">
-            <RadioGroupItem value="map">Map View</RadioGroupItem>
-            <RadioGroupItem value="bar">Bar Chart</RadioGroupItem>
-          </RadioGroup>
-          {locationView === 'map' ? (
-            <div>TODO: Add Map View Component</div>
-          ) : (
-            renderCombinedBar(data.location_summary, 'STATE_NAME', 'Orders & Revenue by State')
-          )}
-        </TabsContent>
+      {canFetchAnalytics && (
+        <div>
+          <Tabs defaultValue="location" className="w-full">
+            <TabsList>
+              <TabsTrigger value="location">Location Wise</TabsTrigger>
+              <TabsTrigger value="product">Product Wise</TabsTrigger>
+              <TabsTrigger value="brand">Brand Wise</TabsTrigger>
+              <TabsTrigger value="trend">Trend Analysis</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="product">
-          {renderCombinedBar(data.product_summary, 'PRODUCT', 'All Products Performance')}
-        </TabsContent>
-
-        <TabsContent value="brand">
-          {renderCombinedBar(data.brand_summary, 'BRAND', 'All Brands Performance')}
-        </TabsContent>
-
-        <TabsContent value="trend">
-          {renderTrendLine()}
-        </TabsContent>
-      </Tabs>
+            <TabsContent value="location">
+              {data.location_summary && renderChart("Orders & Revenue by State", data.location_summary, 'STATE_NAME')}
+            </TabsContent>
+            <TabsContent value="product">
+              {data.product_summary && renderChart("All Products Performance", data.product_summary, 'PRODUCT')}
+            </TabsContent>
+            <TabsContent value="brand">
+              {data.brand_summary && renderChart("All Brands Performance", data.brand_summary, 'BRAND')}
+            </TabsContent>
+            <TabsContent value="trend">
+              {data.trend_data && renderTrendChart()}
+            </TabsContent>
+          </Tabs>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Dashboard;
+export default InsightsPanel;
