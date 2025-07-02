@@ -1,0 +1,174 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Plot from 'react-plotly.js';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Select, SelectItem } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+
+const Dashboard = () => {
+  const [filters, setFilters] = useState({
+    source_system: 'sdp',
+    time_range: '1 year',
+    product: 'All',
+    brand: 'All',
+    state: 'All',
+    country: 'All',
+  });
+  const [filterOptions, setFilterOptions] = useState({ products: [], brands: [], states: [], countries: [] });
+  const [data, setData] = useState({ product_summary: [], brand_summary: [], location_summary: [], trend_data: [] });
+  const [locationView, setLocationView] = useState('map');
+
+  useEffect(() => {
+    axios.get('/api/filters', { params: { source_system: filters.source_system } }).then(res => {
+      setFilterOptions(res.data);
+    });
+  }, [filters.source_system]);
+
+  useEffect(() => {
+    axios.post('/api/analytics', filters).then(res => {
+      setData(res.data);
+    });
+  }, [filters]);
+
+  const handleFilterChange = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
+
+  const renderCombinedBar = (df, xKey, title) => {
+    const x = df.map(row => row[xKey]);
+    const orders = df.map(row => row.Total_orders);
+    const revenueM = df.map(row => row.MRC_sum / 1_000_000);
+    const revenueRaw = df.map(row => row.MRC_sum);
+
+    return (
+      <Plot
+        data={[
+          {
+            x,
+            y: orders,
+            name: 'Total Orders',
+            type: 'bar',
+            marker: { color: '#1f77b4' },
+            hovertemplate: 'Orders: %{y:.2f}<extra></extra>',
+          },
+          {
+            x,
+            y: revenueM,
+            name: 'Revenue ($M)',
+            type: 'bar',
+            marker: { color: '#2ca02c' },
+            customdata: revenueRaw,
+            hovertemplate: 'Revenue: $%{customdata:,.0f}<extra></extra>',
+          },
+        ]}
+        layout={{
+          title,
+          barmode: 'group',
+          height: 600,
+          bargap: 0.2,
+          xaxis: { title: xKey, tickangle: -30 },
+          yaxis: { title: 'Total Orders' },
+        }}
+        useResizeHandler
+        style={{ width: '100%' }}
+      />
+    );
+  };
+
+  const renderTrendLine = () => {
+    const x = data.trend_data.map(d => d.CREATED_MONTH);
+    const orders = data.trend_data.map(d => d.Total_orders);
+    const revenue = data.trend_data.map(d => d.MRC_sum / 1_000_000);
+
+    return (
+      <Plot
+        data={[
+          {
+            x,
+            y: orders,
+            name: 'Total Orders',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { color: '#1f77b4' },
+            hovertemplate: 'Orders: %{y:.2f}<br>Date: %{x|%b %Y}<extra></extra>',
+          },
+          {
+            x,
+            y: revenue,
+            name: 'Revenue ($M)',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { color: '#2ca02c', dash: 'dash' },
+            hovertemplate: 'Revenue: $%{y:.2f}M<br>Date: %{x|%b %Y}<extra></extra>',
+          },
+        ]}
+        layout={{
+          title: 'Monthly Trend: Orders vs Revenue',
+          height: 600,
+          xaxis: { title: 'Month' },
+          yaxis: { title: 'Total Orders' },
+          yaxis2: { title: 'Revenue ($M)', overlaying: 'y', side: 'right', showgrid: false },
+        }}
+        useResizeHandler
+        style={{ width: '100%' }}
+      />
+    );
+  };
+
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">SDP Analytics Dashboard</h1>
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <Select label="Time Range" value={filters.time_range} onValueChange={v => handleFilterChange('time_range', v)}>
+          {['6 months', '1 year', '2 years', 'All'].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        </Select>
+        <Select label="Product" value={filters.product} onValueChange={v => handleFilterChange('product', v)}>
+          {['All', ...filterOptions.products].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        </Select>
+        <Select label="Brand" value={filters.brand} onValueChange={v => handleFilterChange('brand', v)}>
+          {['All', ...filterOptions.brands].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        </Select>
+        <Select label="State" value={filters.state} onValueChange={v => handleFilterChange('state', v)}>
+          {['All', ...filterOptions.states].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        </Select>
+        <Select label="Country" value={filters.country} onValueChange={v => handleFilterChange('country', v)}>
+          {['All', ...filterOptions.countries].map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+        </Select>
+      </div>
+
+      <Tabs defaultValue="location">
+        <TabsList>
+          <TabsTrigger value="location">Location Wise</TabsTrigger>
+          <TabsTrigger value="product">Product Wise</TabsTrigger>
+          <TabsTrigger value="brand">Brand Wise</TabsTrigger>
+          <TabsTrigger value="trend">Trend Analysis</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="location">
+          <RadioGroup defaultValue="map" onValueChange={setLocationView} className="mb-4">
+            <RadioGroupItem value="map">Map View</RadioGroupItem>
+            <RadioGroupItem value="bar">Bar Chart</RadioGroupItem>
+          </RadioGroup>
+          {locationView === 'map' ? (
+            <div>TODO: Add Map View Component</div>
+          ) : (
+            renderCombinedBar(data.location_summary, 'STATE_NAME', 'Orders & Revenue by State')
+          )}
+        </TabsContent>
+
+        <TabsContent value="product">
+          {renderCombinedBar(data.product_summary, 'PRODUCT', 'All Products Performance')}
+        </TabsContent>
+
+        <TabsContent value="brand">
+          {renderCombinedBar(data.brand_summary, 'BRAND', 'All Brands Performance')}
+        </TabsContent>
+
+        <TabsContent value="trend">
+          {renderTrendLine()}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default Dashboard;
