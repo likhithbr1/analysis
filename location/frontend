@@ -14,25 +14,30 @@ const InsightsPanel = () => {
     state: 'All',
     country: 'All'
   });
-  const [filterOptions, setFilterOptions] = useState({});
+
+  const [filterOptions, setFilterOptions] = useState({
+    products: [],
+    brands: [],
+    states: [],
+    countries: []
+  });
+
   const [data, setData] = useState({});
-  const [canFetchAnalytics, setCanFetchAnalytics] = useState(false);
 
   const handleChange = (field, value) => {
     setFilters(prev => ({ ...prev, [field]: value }));
-    if (field !== 'source_system') setCanFetchAnalytics(false);
-  };
 
-  const clearFilters = () => {
-    setFilters(prev => ({
-      ...prev,
-      time_range: '1 year',
-      product: 'All',
-      brand: 'All',
-      state: 'All',
-      country: 'All'
-    }));
-    setCanFetchAnalytics(false);
+    if (field === 'source_system') {
+      // Reset other filters when source changes
+      setFilters(prev => ({
+        ...prev,
+        time_range: '1 year',
+        product: 'All',
+        brand: 'All',
+        state: 'All',
+        country: 'All'
+      }));
+    }
   };
 
   useEffect(() => {
@@ -130,76 +135,56 @@ const InsightsPanel = () => {
     );
   };
 
+  const renderSelect = (label, field, options) => (
+    <div>
+      <label className="text-sm font-medium">{label}</label>
+      <Select onValueChange={v => handleChange(field, v)} value={filters[field]} disabled={!filters.source_system}>
+        <SelectTrigger><SelectValue placeholder={label} /></SelectTrigger>
+        <SelectContent>
+          {['All'].concat(options).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   return (
     <div className="p-6">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <Select onValueChange={v => handleChange('source_system', v)} value={filters.source_system}>
-          <SelectTrigger><SelectValue placeholder="Source System" /></SelectTrigger>
-          <SelectContent>
-            {['sdp', 'orion', 'eon'].map(k => <SelectItem key={k} value={k}>{k.toUpperCase()}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={v => handleChange('time_range', v)} value={filters.time_range}>
-          <SelectTrigger><SelectValue placeholder="Time Range" /></SelectTrigger>
-          <SelectContent>
-            {['6 months', '1 year', '2 years', 'All'].map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={v => handleChange('product', v)} value={filters.product}>
-          <SelectTrigger><SelectValue placeholder="Product" /></SelectTrigger>
-          <SelectContent>
-            {['All'].concat(filterOptions.products || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={v => handleChange('brand', v)} value={filters.brand}>
-          <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
-          <SelectContent>
-            {['All'].concat(filterOptions.brands || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={v => handleChange('state', v)} value={filters.state}>
-          <SelectTrigger><SelectValue placeholder="State" /></SelectTrigger>
-          <SelectContent>
-            {['All'].concat(filterOptions.states || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select onValueChange={v => handleChange('country', v)} value={filters.country}>
-          <SelectTrigger><SelectValue placeholder="Country" /></SelectTrigger>
-          <SelectContent>
-            {['All'].concat(filterOptions.countries || []).map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {renderSelect("Source System", "source_system", ['sdp', 'orion', 'eon'])}
+        {renderSelect("Time Range", "time_range", ['6 months', '1 year', '2 years', 'All'])}
+        {renderSelect("Product", "product", filterOptions.products || [])}
+        {renderSelect("Brand", "brand", filterOptions.brands || [])}
+        {renderSelect("State", "state", filterOptions.states || [])}
+        {renderSelect("Country", "country", filterOptions.countries || [])}
       </div>
 
       <div className="flex gap-4 mb-6">
-        <Button onClick={() => setCanFetchAnalytics(true)}>Apply Filters</Button>
-        <Button variant="outline" onClick={clearFilters}>Clear Filters</Button>
+        <Button onClick={fetchAnalytics}>Done</Button>
+        <Button variant="outline" onClick={() => window.location.reload()}>Clear</Button>
       </div>
 
-      {canFetchAnalytics && (
-        <div>
-          <Tabs defaultValue="location" className="w-full">
-            <TabsList>
-              <TabsTrigger value="location">Location Wise</TabsTrigger>
-              <TabsTrigger value="product">Product Wise</TabsTrigger>
-              <TabsTrigger value="brand">Brand Wise</TabsTrigger>
-              <TabsTrigger value="trend">Trend Analysis</TabsTrigger>
-            </TabsList>
+      {data?.trend_data && (
+        <Tabs defaultValue="location" className="w-full">
+          <TabsList>
+            <TabsTrigger value="location">Location Wise</TabsTrigger>
+            <TabsTrigger value="product">Product Wise</TabsTrigger>
+            <TabsTrigger value="brand">Brand Wise</TabsTrigger>
+            <TabsTrigger value="trend">Trend Analysis</TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="location">
-              {data.location_summary && renderChart("Orders & Revenue by State", data.location_summary, 'STATE_NAME')}
-            </TabsContent>
-            <TabsContent value="product">
-              {data.product_summary && renderChart("All Products Performance", data.product_summary, 'PRODUCT')}
-            </TabsContent>
-            <TabsContent value="brand">
-              {data.brand_summary && renderChart("All Brands Performance", data.brand_summary, 'BRAND')}
-            </TabsContent>
-            <TabsContent value="trend">
-              {data.trend_data && renderTrendChart()}
-            </TabsContent>
-          </Tabs>
-        </div>
+          <TabsContent value="location">
+            {data.location_summary && renderChart("Orders & Revenue by State", data.location_summary, 'STATE_NAME')}
+          </TabsContent>
+          <TabsContent value="product">
+            {data.product_summary && renderChart("All Products Performance", data.product_summary, 'PRODUCT')}
+          </TabsContent>
+          <TabsContent value="brand">
+            {data.brand_summary && renderChart("All Brands Performance", data.brand_summary, 'BRAND')}
+          </TabsContent>
+          <TabsContent value="trend">
+            {renderTrendChart()}
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
