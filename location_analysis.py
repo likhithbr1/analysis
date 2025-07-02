@@ -81,19 +81,19 @@ def plot_dual_metric_map(df, title):
     return fig
 
 def main():
-    st.title("\ud83d\udcca SDP Analytics Dashboard")
+    st.title("SDP Analytics Dashboard")
     df = load_data()
     if df is None:
         return
 
-    st.subheader("\ud83d\udd0d Global Filters")
+    st.subheader("Global Filters")
     time_range = st.selectbox("Select Time Range:", ["6 months", "1 year", "2 years", "All"], index=1)
     filtered_df = filter_data_by_time_range(df, time_range)
     if filtered_df.empty:
         st.warning("No data for selected time range.")
         return
 
-    tab1, tab2, tab3 = st.tabs(["\ud83d\udcdc Location Wise", "\ud83d\udce6 Product Wise", "\ud83c\udf02 Brand Wise"])
+    tab1, tab2, tab3 = st.tabs(["Location Wise", "Product Wise", "Brand Wise"])
 
     with tab1:
         st.header("Location-Wise Performance")
