@@ -1,4 +1,4 @@
-# SDP Analytics Dashboard - With Global Filters and Derived Logic
+# SDP Analytics Dashboard - Global Filtered Version
 
 import streamlit as st
 import pandas as pd
@@ -7,22 +7,14 @@ import plotly.express as px
 from datetime import timedelta
 
 # Page configuration
-st.set_page_config(
-    page_title="SDP Analytics Dashboard",
-    page_icon="📊",
-    layout="wide"
-)
+st.set_page_config(page_title="SDP Analytics Dashboard", page_icon="📊", layout="wide")
 
 @st.cache_data
 def load_data():
-    try:
-        df = pd.read_csv('SDP_agg_INS copy.csv')
-        df['CREATED_MONTH'] = pd.to_datetime(df['CREATED_MONTH'])
-        df = df.sort_values('CREATED_MONTH')
-        return df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return None
+    df = pd.read_csv('SDP_agg_INS copy.csv')
+    df['CREATED_MONTH'] = pd.to_datetime(df['CREATED_MONTH'])
+    df = df.sort_values('CREATED_MONTH')
+    return df
 
 def filter_data_by_time_range(df, time_range):
     if time_range == "All":
@@ -50,8 +42,8 @@ def get_us_state_codes():
         'District of Columbia': 'DC'
     }
 
-def plot_dual_metric_bar(df, x_col, title, key):
-    toggle = st.radio("Select Metric", ["Total Orders", "Revenue"], horizontal=True, key=key)
+def plot_dual_metric_bar(df, x_col, title):
+    toggle = st.radio("Select Metric to Display:", ["Total Orders", "Revenue"], horizontal=True, key=title)
     y_col = 'Total_orders' if toggle == "Total Orders" else 'MRC_sum'
     y_title = "Total Orders" if toggle == "Total Orders" else "Revenue ($)"
     color = '#1f77b4' if toggle == "Total Orders" else '#2ca02c'
@@ -89,91 +81,70 @@ def plot_dual_metric_map(df, title):
 def main():
     st.title("SDP Analytics Dashboard")
     df = load_data()
-    if df is None:
-        return
 
-    col1, col2, col3 = st.columns([1, 2, 2])
-    with col1:
-        time_range = st.selectbox("Time Range", ["6 months", "1 year", "2 years", "All"], index=1)
-    with col2:
-        product_filter = st.selectbox("Product", ["All"] + sorted(df['PRODUCT'].dropna().unique()))
-    with col3:
-        brand_filter = st.selectbox("Brand", ["All"] + sorted(df['BRAND'].dropna().unique()))
+    st.subheader("Global Filters")
+    time_range = st.selectbox("Select Time Range:", ["6 months", "1 year", "2 years", "All"], index=1)
+    product_list = ["All"] + sorted(df['PRODUCT'].dropna().unique())
+    brand_list = ["All"] + sorted(df['BRAND'].dropna().unique())
+    selected_product = st.selectbox("Select Product:", product_list, index=0)
+    selected_brand = st.selectbox("Select Brand:", brand_list, index=0)
 
-    filtered_df = filter_data_by_time_range(df, time_range)
-
-    if product_filter != "All":
-        filtered_df = filtered_df[filtered_df['PRODUCT'] == product_filter]
-    if brand_filter != "All":
-        filtered_df = filtered_df[filtered_df['BRAND'] == brand_filter]
+    df = filter_data_by_time_range(df, time_range)
 
     tab1, tab2, tab3 = st.tabs(["Location Wise", "Product Wise", "Brand Wise"])
 
-    # LOCATION TAB
     with tab1:
-        st.subheader("Summary View: Location Wise Performance")
-        chart_type = st.radio("Chart Type", ["Bar Chart", "Map View"], horizontal=True, key='location_chart')
-        state_codes = get_us_state_codes()
-        df_state = filtered_df.groupby('STATE_NAME').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-        df_state['STATE_CODE'] = df_state['STATE_NAME'].map(state_codes)
+        st.header("Location-Wise Performance")
+        chart_type = st.radio("Select Chart Type:", ["Bar Chart", "Map View"], horizontal=True, key='location_chart')
+        df_state = df.groupby('STATE_NAME').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+        df_state['STATE_CODE'] = df_state['STATE_NAME'].map(get_us_state_codes())
 
         if chart_type == "Bar Chart":
-            fig = plot_dual_metric_bar(df_state.sort_values('Total_orders', ascending=False), 'STATE_NAME', "Orders & Revenue by State", "location_bar")
+            fig = plot_dual_metric_bar(df_state.sort_values('Total_orders', ascending=False), 'STATE_NAME', "Orders & Revenue by State")
         else:
             fig = plot_dual_metric_map(df_state, "State Map: Orders & Revenue")
         st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("---")
-        st.subheader("Detail View: Products or Brands in Selected State")
-        selected_state = st.selectbox("Select State", sorted(filtered_df['STATE_NAME'].dropna().unique()), key='state_selector')
-        state_data = filtered_df[filtered_df['STATE_NAME'] == selected_state]
-        entity_type = st.radio("View", ["Products", "Brands"], horizontal=True, key='entity_selector')
-
-        if entity_type == "Products":
-            entity_df = state_data.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-            fig_entity = plot_dual_metric_bar(entity_df.sort_values('Total_orders', ascending=False), 'PRODUCT', f"Products in {selected_state}", "state_product")
-        else:
-            entity_df = state_data.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-            fig_entity = plot_dual_metric_bar(entity_df.sort_values('Total_orders', ascending=False), 'BRAND', f"Brands in {selected_state}", "state_brand")
-        st.plotly_chart(fig_entity, use_container_width=True)
-
-    # PRODUCT TAB
     with tab2:
-        st.subheader("Summary View: Total Orders by Product")
-        summary_df = filtered_df.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-        fig_summary = plot_dual_metric_bar(summary_df.sort_values('Total_orders', ascending=False), 'PRODUCT', "Product Summary View", "product_summary")
-        st.plotly_chart(fig_summary, use_container_width=True)
+        st.header("Product-Wise Performance")
 
-        if product_filter != "All":
-            st.markdown("---")
-            st.subheader(f"Detail View: {product_filter} Performance Across States")
-            detail_df = filtered_df.groupby('STATE_NAME').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-            detail_df['STATE_CODE'] = detail_df['STATE_NAME'].map(get_us_state_codes())
-            chart_type = st.radio("Chart Type", ["Bar Chart", "Map View"], horizontal=True, key='product_detail_chart')
+        if selected_product == "All":
+            df_grouped = df.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+            title = "Total Orders by Product"
+            fig = plot_dual_metric_bar(df_grouped.sort_values('Total_orders', ascending=False), 'PRODUCT', title)
+        else:
+            df_filtered = df[df['PRODUCT'] == selected_product]
+            df_grouped = df_filtered.groupby('STATE_NAME').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+            df_grouped['STATE_CODE'] = df_grouped['STATE_NAME'].map(get_us_state_codes())
+            title = f"{selected_product} Performance Across States"
+            chart_type = st.radio("Chart Type:", ["Bar Chart", "Map View"], horizontal=True, key='product_chart')
             if chart_type == "Bar Chart":
-                fig = plot_dual_metric_bar(detail_df.sort_values('Total_orders', ascending=False), 'STATE_NAME', f"{product_filter} by State", "product_detail_bar")
+                fig = plot_dual_metric_bar(df_grouped.sort_values('Total_orders', ascending=False), 'STATE_NAME', title)
             else:
-                fig = plot_dual_metric_map(detail_df, f"{product_filter} State Map")
-            st.plotly_chart(fig, use_container_width=True)
+                fig = plot_dual_metric_map(df_grouped, title)
 
-    # BRAND TAB
+        st.plotly_chart(fig, use_container_width=True)
+
     with tab3:
-        st.subheader("Summary View: Total Orders by Brand")
-        summary_df = filtered_df.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-        fig_summary = plot_dual_metric_bar(summary_df.sort_values('Total_orders', ascending=False), 'BRAND', "Brand Summary View", "brand_summary")
-        st.plotly_chart(fig_summary, use_container_width=True)
+        st.header("Brand-Wise Performance")
 
-        if brand_filter != "All":
-            st.markdown("---")
-            st.subheader(f"Detail View: {brand_filter} Performance Across States")
-            detail_df = filtered_df.groupby('STATE_NAME').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-            detail_df['STATE_CODE'] = detail_df['STATE_NAME'].map(get_us_state_codes())
-            chart_type = st.radio("Chart Type", ["Bar Chart", "Map View"], horizontal=True, key='brand_detail_chart')
+        if selected_brand == "All":
+            df_grouped = df.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+            title = "Total Orders by Brand"
+            fig = plot_dual_metric_bar(df_grouped.sort_values('Total_orders', ascending=False), 'BRAND', title)
+        else:
+            df_filtered = df[df['BRAND'] == selected_brand]
+            df_grouped = df_filtered.groupby('STATE_NAME').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+            df_grouped['STATE_CODE'] = df_grouped['STATE_NAME'].map(get_us_state_codes())
+            title = f"{selected_brand} Performance Across States"
+            chart_type = st.radio("Chart Type:", ["Bar Chart", "Map View"], horizontal=True, key='brand_chart')
             if chart_type == "Bar Chart":
-                fig = plot_dual_metric_bar(detail_df.sort_values('Total_orders', ascending=False), 'STATE_NAME', f"{brand_filter} by State", "brand_detail_bar")
+                fig = plot_dual_metric_bar(df_grouped.sort_values('Total_orders', ascending=False), 'STATE_NAME', title)
             else:
-                fig = plot_dual_metric_map(detail_df, f"{brand_filter} State Map")
-            st.plotly_chart(fig, use_container_width=True)
+                fig = plot_dual_metric_map(df_grouped, title)
+
+        st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
     main()
+
