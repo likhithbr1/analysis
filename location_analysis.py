@@ -53,15 +53,17 @@ def get_us_state_codes():
     }
 
 def plot_dual_metric_bar(df, x_col, title):
+    toggle = st.radio("Select Metric to Display:", ["Total Orders", "Revenue"], horizontal=True, key=title)
+    y_col = 'Total_orders' if toggle == "Total Orders" else 'MRC_sum'
+    y_title = "Total Orders" if toggle == "Total Orders" else "Revenue ($)"
+    color = 'steelblue' if toggle == "Total Orders" else 'seagreen'
+
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=df[x_col], y=df['Total_orders'], name='Total Orders', marker_color='steelblue'))
-    fig.add_trace(go.Bar(x=df[x_col], y=df['MRC_sum'], name='Revenue ($)', marker_color='seagreen', yaxis='y2'))
+    fig.add_trace(go.Bar(x=df[x_col], y=df[y_col], name=y_title, marker_color=color))
     fig.update_layout(
         title=title,
         xaxis_title=x_col,
-        yaxis=dict(title='Total Orders'),
-        yaxis2=dict(title='Revenue ($)', overlaying='y', side='right'),
-        barmode='group',
+        yaxis=dict(title=y_title),
         height=600
     )
     return fig
@@ -108,6 +110,24 @@ def main():
             fig = plot_dual_metric_map(df_state, "State Map: Orders & Revenue")
         st.plotly_chart(fig, use_container_width=True)
 
+        st.markdown("---")
+        st.subheader("Detailed View: Products & Brands in Selected State")
+        selected_state = st.selectbox("Select State:", sorted(filtered_df['STATE_NAME'].dropna().unique()), key='state_drilldown')
+
+        state_subset = filtered_df[filtered_df['STATE_NAME'] == selected_state]
+        prod_summary = state_subset.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+        brand_summary = state_subset.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f"**Products in {selected_state}**")
+            fig_products = plot_dual_metric_bar(prod_summary.sort_values('Total_orders', ascending=False), 'PRODUCT', f"Products in {selected_state}")
+            st.plotly_chart(fig_products, use_container_width=True)
+        with col2:
+            st.markdown(f"**Brands in {selected_state}**")
+            fig_brands = plot_dual_metric_bar(brand_summary.sort_values('Total_orders', ascending=False), 'BRAND', f"Brands in {selected_state}")
+            st.plotly_chart(fig_brands, use_container_width=True)
+
     with tab2:
         st.header("Product-Wise Performance")
         selected_product = st.selectbox("Select Product:", sorted(filtered_df['PRODUCT'].dropna().unique()))
@@ -138,3 +158,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
