@@ -14,7 +14,6 @@ st.set_page_config(
 )
 
 @st.cache_data
-
 def load_data():
     try:
         df = pd.read_csv('SDP_agg_INS copy.csv')
@@ -56,7 +55,7 @@ def plot_dual_metric_bar(df, x_col, title):
     toggle = st.radio("Select Metric to Display:", ["Total Orders", "Revenue"], horizontal=True, key=title)
     y_col = 'Total_orders' if toggle == "Total Orders" else 'MRC_sum'
     y_title = "Total Orders" if toggle == "Total Orders" else "Revenue ($)"
-    color = '#1f77b4' if toggle == "Total Orders" else '#2ca02c'  # Modern blue/green palette
+    color = '#1f77b4' if toggle == "Total Orders" else '#2ca02c'
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -133,6 +132,14 @@ def main():
 
     with tab2:
         st.header("Product-Wise Performance")
+
+        st.subheader("Summary View")
+        df_products = filtered_df.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+        fig_summary_products = plot_dual_metric_bar(df_products.sort_values('Total_orders', ascending=False), 'PRODUCT', "All Products Performance")
+        st.plotly_chart(fig_summary_products, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Detail View")
         selected_product = st.selectbox("Select Product:", sorted(filtered_df['PRODUCT'].dropna().unique()))
         chart_type = st.radio("Chart Type:", ["Bar Chart", "Map View"], horizontal=True, key='product_chart')
         df_product = filtered_df[filtered_df['PRODUCT'] == selected_product]
@@ -147,6 +154,14 @@ def main():
 
     with tab3:
         st.header("Brand-Wise Performance")
+
+        st.subheader("Summary View")
+        df_brands = filtered_df.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+        fig_summary_brands = plot_dual_metric_bar(df_brands.sort_values('Total_orders', ascending=False), 'BRAND', "All Brands Performance")
+        st.plotly_chart(fig_summary_brands, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("Detail View")
         selected_brand = st.selectbox("Select Brand:", sorted(filtered_df['BRAND'].dropna().unique()))
         chart_type = st.radio("Chart Type:", ["Bar Chart", "Map View"], horizontal=True, key='brand_chart')
         df_brand = filtered_df[filtered_df['BRAND'] == selected_brand]
@@ -161,4 +176,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
