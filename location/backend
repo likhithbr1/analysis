@@ -7,13 +7,14 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Dataset paths (update these to match your environment)
+# Dataset paths (make sure these paths are correct)
 DATASETS = {
     "sdp": "SDP_agg_INS copy.csv",
     "orion": "Orion.csv",
     "eon": "Eon.csv",
 }
 
+# US state code mapping
 US_STATE_CODES = {
     'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
     'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
@@ -28,6 +29,7 @@ US_STATE_CODES = {
     'District of Columbia': 'DC'
 }
 
+# Load data based on source system
 def load_data(source_system):
     path = DATASETS.get(source_system)
     if not path or not os.path.exists(path):
@@ -36,6 +38,7 @@ def load_data(source_system):
     df['CREATED_MONTH'] = pd.to_datetime(df['CREATED_MONTH'])
     return df.sort_values('CREATED_MONTH')
 
+# Filter by time range
 def filter_by_time(df, time_range):
     if time_range == "All":
         return df
@@ -47,12 +50,15 @@ def filter_by_time(df, time_range):
     }.get(time_range, timedelta(days=365))
     return df[df['CREATED_MONTH'] >= (end - delta)]
 
+# Route: Get filter dropdown values
 @app.route("/api/filters", methods=["GET"])
 def get_filters():
-    source = request.args.get("source_system", "sdp")
+    source = request.args.get("source_system")
+    if not source:
+        return jsonify({"error": "Missing source_system"}), 400
     df = load_data(source)
     if df is None:
-        return jsonify({"error": "Invalid or missing source system"}), 400
+        return jsonify({"error": "Invalid source system"}), 400
 
     return jsonify({
         "products": sorted(df['PRODUCT'].dropna().unique().tolist()),
@@ -61,22 +67,27 @@ def get_filters():
         "countries": sorted(df['COUNTRY_NM'].dropna().unique().tolist())
     })
 
+# Route: Get aggregated analytics data
 @app.route("/api/analytics", methods=["POST"])
 def get_analytics():
     data = request.get_json()
-    source = data.get("source_system", "sdp")
+    source = data.get("source_system")
+    if not source:
+        return jsonify({"error": "Missing source_system"}), 400
+
     df = load_data(source)
     if df is None:
         return jsonify({"error": "Invalid source system"}), 400
 
     df = filter_by_time(df, data.get("time_range", "1 year"))
-    if data.get("product", "All") != "All":
+
+    if data.get("product") and data["product"] != "All":
         df = df[df["PRODUCT"] == data["product"]]
-    if data.get("brand", "All") != "All":
+    if data.get("brand") and data["brand"] != "All":
         df = df[df["BRAND"] == data["brand"]]
-    if data.get("state", "All") != "All":
+    if data.get("state") and data["state"] != "All":
         df = df[df["STATE_NAME"] == data["state"]]
-    if data.get("country", "All") != "All":
+    if data.get("country") and data["country"] != "All":
         df = df[df["COUNTRY_NM"] == data["country"]]
 
     return jsonify({
