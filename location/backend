@@ -1,0 +1,95 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import pandas as pd
+from datetime import timedelta
+import os
+
+app = Flask(__name__)
+CORS(app)
+
+# Dataset paths (update these to match your environment)
+DATASETS = {
+    "sdp": "SDP_agg_INS copy.csv",
+    "orion": "Orion.csv",
+    "eon": "Eon.csv",
+}
+
+US_STATE_CODES = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
+    'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
+    'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
+    'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS', 'Missouri': 'MO',
+    'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
+    'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH',
+    'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+    'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT',
+    'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY',
+    'District of Columbia': 'DC'
+}
+
+def load_data(source_system):
+    path = DATASETS.get(source_system)
+    if not path or not os.path.exists(path):
+        return None
+    df = pd.read_csv(path)
+    df['CREATED_MONTH'] = pd.to_datetime(df['CREATED_MONTH'])
+    return df.sort_values('CREATED_MONTH')
+
+def filter_by_time(df, time_range):
+    if time_range == "All":
+        return df
+    end = df['CREATED_MONTH'].max()
+    delta = {
+        "6 months": timedelta(days=180),
+        "1 year": timedelta(days=365),
+        "2 years": timedelta(days=730)
+    }.get(time_range, timedelta(days=365))
+    return df[df['CREATED_MONTH'] >= (end - delta)]
+
+@app.route("/api/filters", methods=["GET"])
+def get_filters():
+    source = request.args.get("source_system", "sdp")
+    df = load_data(source)
+    if df is None:
+        return jsonify({"error": "Invalid or missing source system"}), 400
+
+    return jsonify({
+        "products": sorted(df['PRODUCT'].dropna().unique().tolist()),
+        "brands": sorted(df['BRAND'].dropna().unique().tolist()),
+        "states": sorted(df['STATE_NAME'].dropna().unique().tolist()),
+        "countries": sorted(df['COUNTRY_NM'].dropna().unique().tolist())
+    })
+
+@app.route("/api/analytics", methods=["POST"])
+def get_analytics():
+    data = request.get_json()
+    source = data.get("source_system", "sdp")
+    df = load_data(source)
+    if df is None:
+        return jsonify({"error": "Invalid source system"}), 400
+
+    df = filter_by_time(df, data.get("time_range", "1 year"))
+    if data.get("product", "All") != "All":
+        df = df[df["PRODUCT"] == data["product"]]
+    if data.get("brand", "All") != "All":
+        df = df[df["BRAND"] == data["brand"]]
+    if data.get("state", "All") != "All":
+        df = df[df["STATE_NAME"] == data["state"]]
+    if data.get("country", "All") != "All":
+        df = df[df["COUNTRY_NM"] == data["country"]]
+
+    return jsonify({
+        "product_summary": df.groupby("PRODUCT", as_index=False)
+            .agg({"Total_orders": "sum", "MRC_sum": "sum"}).to_dict(orient="records"),
+        "brand_summary": df.groupby("BRAND", as_index=False)
+            .agg({"Total_orders": "sum", "MRC_sum": "sum"}).to_dict(orient="records"),
+        "location_summary": df.groupby("STATE_NAME", as_index=False)
+            .agg({"Total_orders": "sum", "MRC_sum": "sum"})
+            .assign(STATE_CODE=lambda x: x["STATE_NAME"].map(US_STATE_CODES)).to_dict(orient="records"),
+        "trend_data": df.groupby("CREATED_MONTH", as_index=False)
+            .agg({"Total_orders": "sum", "MRC_sum": "sum"}).to_dict(orient="records")
+    })
+
+if __name__ == "__main__":
+    app.run(debug=True)
