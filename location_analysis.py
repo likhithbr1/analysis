@@ -111,22 +111,21 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("Detailed View: Products & Brands in Selected State")
+        st.subheader("Detailed View: Products or Brands in Selected State")
         selected_state = st.selectbox("Select State:", sorted(filtered_df['STATE_NAME'].dropna().unique()), key='state_drilldown')
 
-        state_subset = filtered_df[filtered_df['STATE_NAME'] == selected_state]
-        prod_summary = state_subset.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
-        brand_summary = state_subset.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+        entity_type = st.radio("Select Entity to View:", ["Products", "Brands"], horizontal=True, key='entity_selector')
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(f"**Products in {selected_state}**")
-            fig_products = plot_dual_metric_bar(prod_summary.sort_values('Total_orders', ascending=False), 'PRODUCT', f"Products in {selected_state}")
-            st.plotly_chart(fig_products, use_container_width=True)
-        with col2:
-            st.markdown(f"**Brands in {selected_state}**")
-            fig_brands = plot_dual_metric_bar(brand_summary.sort_values('Total_orders', ascending=False), 'BRAND', f"Brands in {selected_state}")
-            st.plotly_chart(fig_brands, use_container_width=True)
+        state_subset = filtered_df[filtered_df['STATE_NAME'] == selected_state]
+
+        if entity_type == "Products":
+            entity_summary = state_subset.groupby('PRODUCT').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+            fig_entity = plot_dual_metric_bar(entity_summary.sort_values('Total_orders', ascending=False), 'PRODUCT', f"Products in {selected_state}")
+        else:
+            entity_summary = state_subset.groupby('BRAND').agg({'Total_orders': 'sum', 'MRC_sum': 'sum'}).reset_index()
+            fig_entity = plot_dual_metric_bar(entity_summary.sort_values('Total_orders', ascending=False), 'BRAND', f"Brands in {selected_state}")
+
+        st.plotly_chart(fig_entity, use_container_width=True)
 
     with tab2:
         st.header("Product-Wise Performance")
@@ -158,4 +157,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
