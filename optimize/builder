@@ -1,0 +1,48 @@
+import pandas as pd
+import json
+import os
+from datetime import datetime
+
+# ---------- CONFIG ----------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SOURCE_FILE_MAP = {
+    "eon": os.path.join(BASE_DIR, "sorted_file.xlsx"),
+    "sdp": os.path.join(BASE_DIR, "sorted_file_sdp.xlsx"),
+    "orion": os.path.join(BASE_DIR, "sorted_file_orion.xlsx"),
+}
+CACHE_DIR = os.path.join(BASE_DIR, "forecast_cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+# ---------- HELPER ----------
+def has_sufficient_data(df_prod):
+    return df_prod.shape[0] >= 60 and df_prod["total_orders"].sum() >= 10
+
+def build_forecast_cache(source_system):
+    if source_system not in SOURCE_FILE_MAP:
+        print(f"Unknown source system: {source_system}")
+        return
+
+    print(f"Processing: {source_system}...")
+    df = pd.read_excel(SOURCE_FILE_MAP[source_system])
+    df["date"] = pd.to_datetime(df["date"])
+    valid_products = []
+
+    for product in df["product"].unique():
+        df_prod = df[df["product"] == product][["date", "total_orders"]].copy()
+        if has_sufficient_data(df_prod):
+            valid_products.append(product)
+
+    cache_file = os.path.join(CACHE_DIR, f"forecast_cache_{source_system}.json")
+    with open(cache_file, "w") as f:
+        json.dump({
+            "source_system": source_system,
+            "cached_at": datetime.now().isoformat(),
+            "products": sorted(valid_products)
+        }, f, indent=2)
+
+    print(f"✅ Cached {len(valid_products)} valid products → {cache_file}")
+
+# ---------- MAIN ----------
+if __name__ == "__main__":
+    for source in SOURCE_FILE_MAP.keys():
+        build_forecast_cache(source)
